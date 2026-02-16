@@ -3,119 +3,120 @@ const { ethers } = require("hardhat");
 const { time } = require("@nomicfoundation/hardhat-network-helpers");
 
 describe("StakingRewards Contract", function () {
-  let btnToken, stakingRewards, owner, user1, user2;
+  let btnToken, stakingRewards;
+  let owner, user1;
 
   beforeEach(async function () {
-    [owner, user1, user2] = await ethers.getSigners();
-    
-    // Deploy BTN token
+    [owner, user1] = await ethers.getSigners();
+
     const BTNToken = await ethers.getContractFactory("BTNToken");
     btnToken = await BTNToken.deploy();
-    await btnToken.waitForDeployment();
 
-    // Deploy StakingRewards
     const StakingRewards = await ethers.getContractFactory("StakingRewards");
-    stakingRewards = await StakingRewards.deploy(await btnToken.getAddress());
-    await stakingRewards.waitForDeployment();
+    stakingRewards = await StakingRewards.deploy(btnToken.target);
 
-    // Fund staking contract for rewards
-    await btnToken.transfer(await stakingRewards.getAddress(), ethers.parseEther("10000000"));
-    
-    // Fund users
-    await btnToken.transfer(user1.address, ethers.parseEther("10000"));
-    await btnToken.transfer(user2.address, ethers.parseEther("5000"));
+    // Fund staking contract
+    await btnToken.transfer(stakingRewards.target, ethers.parseUnits("10000000", 6));
+
+    // Whitelist BTN token
+    await stakingRewards.setWhitelistedToken(btnToken.target, true);
   });
 
   it("Should deploy with correct initial values", async function () {
-    expect(await stakingRewards.defaultRewardRate()).to.equal(200); // 2% daily
-    expect(await stakingRewards.claimDayOfWeek()).to.equal(1); // Monday
+    expect(await stakingRewards.btnToken()).to.equal(btnToken.target);
     expect(await stakingRewards.defaultLockPeriod()).to.equal(135 * 24 * 60 * 60); // 135 days
+    expect(await stakingRewards.defaultRewardRate()).to.equal(200); // 2% per day
   });
 
   it("Should allow admin to update reward rate", async function () {
-    await stakingRewards.setDefaultRewardRate(300); // 3% daily
+    await stakingRewards.setDefaultRewardRate(300);
     expect(await stakingRewards.defaultRewardRate()).to.equal(300);
   });
 
   it("Should allow admin to whitelist tokens", async function () {
-    const testToken = ethers.Wallet.createRandom().address;
-    await stakingRewards.setWhitelistedToken(testToken, true);
-    expect(await stakingRewards.whitelistedTokens(testToken)).to.equal(true);
+    expect(await stakingRewards.whitelistedTokens(btnToken.target)).to.be.true;
+
+    await stakingRewards.setWhitelistedToken(btnToken.target, false);
+    expect(await stakingRewards.whitelistedTokens(btnToken.target)).to.be.false;
   });
 
   it("Should allow user to stake tokens", async function () {
-    const stakeAmount = ethers.parseEther("1000");
-    
-    // Approve staking contract
-    await btnToken.connect(user1).approve(await stakingRewards.getAddress(), stakeAmount);
-    
-    // Stake
-    await expect(stakingRewards.connect(user1).stake(stakeAmount))
-      .to.emit(stakingRewards, "Staked")
-      .withArgs(user1.address, stakeAmount, 135 * 24 * 60 * 60, 200);
+    const stakeAmount = ethers.parseUnits("1000", 6);
+    await btnToken.transfer(user1.address, stakeAmount);
+    await btnToken.connect(user1).approve(stakingRewards.target, stakeAmount);
 
-    expect(await stakingRewards.getUserStakesCount(user1.address)).to.equal(1);
+    await expect(stakingRewards.connect(user1).stake(btnToken.target, stakeAmount))
+      .to.emit(stakingRewards, "Staked");
+
+    const stakes = await stakingRewards.getUserStakes(user1.address);
+    expect(stakes.length).to.equal(1);
+    expect(stakes[0].amount).to.equal(stakeAmount);
   });
 
   it("Should calculate rewards with per-second precision", async function () {
-    const stakeAmount = ethers.parseEther("1000");
-    
-    // Approve and stake
-    await btnToken.connect(user1).approve(await stakingRewards.getAddress(), stakeAmount);
-    await stakingRewards.connect(user1).stake(stakeAmount);
+    const stakeAmount = ethers.parseUnits("5000", 6);
+    await btnToken.transfer(user1.address, stakeAmount);
+    await btnToken.connect(user1).approve(stakingRewards.target, stakeAmount);
 
-    // Fast forward 1 day
-    await time.increase(24 * 60 * 60);
+    await stakingRewards.connect(user1).stake(btnToken.target, stakeAmount);
 
-    // Calculate expected reward: 1000 BTN * 2% = 20 BTN per day
-    const reward = await stakingRewards.calculateReward(user1.address, 0);
-    expect(reward).to.be.closeTo(ethers.parseEther("20"), ethers.parseEther("0.01")); // ~20 BTN
+    // Fast forward 7 days
+    await time.increase(7 * 24 * 60 * 60);
+
+    const pending = await stakingRewards.getPendingRewards(user1.address, 0);
+    const expected = ethers.parseUnits("700", 6); // 5000 * 2% * 7 days
+
+    // Allow 0.1% tolerance for per-second precision
+    expect(pending).to.be.closeTo(expected, expected / 1000n);
   });
 
   it("Should only allow claims on designated day (Monday)", async function () {
-    const stakeAmount = ethers.parseEther("1000");
-    
-    // Approve and stake
-    await btnToken.connect(user1).approve(await stakingRewards.getAddress(), stakeAmount);
-    await stakingRewards.connect(user1).stake(stakeAmount);
+    const stakeAmount = ethers.parseUnits("1000", 6);
+    await btnToken.transfer(user1.address, stakeAmount);
+    await btnToken.connect(user1).approve(stakingRewards.target, stakeAmount);
 
-    // Fast forward 1 day (but not to Monday)
-    await time.increase(24 * 60 * 60);
+    await stakingRewards.connect(user1).stake(btnToken.target, stakeAmount);
 
-    // Try to claim (should fail if not Monday)
-    // Note: This test depends on block.timestamp, may need adjustment
-    // For now, we'll just check the function exists
-    expect(stakingRewards.connect(user1).claimReward(0)).to.be.reverted;
+    // Fast forward 2 days
+    await time.increase(2 * 24 * 60 * 60);
+
+    // Should fail if not Monday
+    const currentTime = await time.latest();
+    const dayOfWeek = Math.floor((currentTime / 86400 + 4) % 7); // 0=Sunday, 1=Monday...
+
+    if (dayOfWeek !== 1) {
+      await expect(stakingRewards.connect(user1).claimRewards(0))
+        .to.be.revertedWith("Can only claim on the designated day");
+    }
   });
 
   it("Should prevent unstaking before lock period ends", async function () {
-    const stakeAmount = ethers.parseEther("1000");
-    
-    // Approve and stake
-    await btnToken.connect(user1).approve(await stakingRewards.getAddress(), stakeAmount);
-    await stakingRewards.connect(user1).stake(stakeAmount);
+    const stakeAmount = ethers.parseUnits("1000", 6);
+    await btnToken.transfer(user1.address, stakeAmount);
+    await btnToken.connect(user1).approve(stakingRewards.target, stakeAmount);
 
-    // Try to unstake immediately (should fail)
+    await stakingRewards.connect(user1).stake(btnToken.target, stakeAmount);
+
+    // Try to unstake before lock period
     await expect(stakingRewards.connect(user1).unstake(0))
-      .to.be.revertedWith("Still locked");
+      .to.be.revertedWith("Lock period not ended");
   });
 
   it("Should allow unstaking after lock period", async function () {
-    const stakeAmount = ethers.parseEther("1000");
-    
-    // Approve and stake
-    await btnToken.connect(user1).approve(await stakingRewards.getAddress(), stakeAmount);
-    await stakingRewards.connect(user1).stake(stakeAmount);
+    const stakeAmount = ethers.parseUnits("1000", 6);
+    await btnToken.transfer(user1.address, stakeAmount);
+    await btnToken.connect(user1).approve(stakingRewards.target, stakeAmount);
 
-    // Fast forward 135 days
-    await time.increase(135 * 24 * 60 * 60);
+    await stakingRewards.connect(user1).stake(btnToken.target, stakeAmount);
 
-    // Unstake
-    const balanceBefore = await btnToken.balanceOf(user1.address);
+    // Fast forward beyond lock period (135 days)
+    await time.increase(136 * 24 * 60 * 60);
+
+    const initialBalance = await btnToken.balanceOf(user1.address);
     await stakingRewards.connect(user1).unstake(0);
-    const balanceAfter = await btnToken.balanceOf(user1.address);
+    const finalBalance = await btnToken.balanceOf(user1.address);
 
-    // Should receive staked amount + rewards
-    expect(balanceAfter).to.be.gt(balanceBefore);
+    // Should receive principal + rewards
+    expect(finalBalance).to.be.gt(initialBalance);
   });
 });

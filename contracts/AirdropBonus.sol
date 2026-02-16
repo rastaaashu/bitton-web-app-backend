@@ -9,7 +9,7 @@ contract AirdropBonus is Ownable {
 
     struct ReferralInfo {
         address referrer;
-        uint256 rank; // 1=Bronze, 2=Silver, 3=Gold, 4=Platinum, 5=Sapphire, 6=Ruby, 7=Emerald, 8=Diamond, 9=BlueDiamond
+        uint256 rank;
     }
 
     mapping(address => ReferralInfo) public referrals;
@@ -21,14 +21,14 @@ contract AirdropBonus is Ownable {
 
     constructor(address _btnToken) Ownable(msg.sender) {
         btnToken = IERC20(_btnToken);
-        
-        // Screenshot values - basis points (1% = 100)
+
+        // Correct percentages (basis points: 1% = 100)
         bonusPercentages[1] = [300, 0, 0, 0, 0, 0, 0, 0, 0, 0]; // Bronze: 3%
         bonusPercentages[2] = [100, 200, 300, 0, 0, 0, 0, 0, 0, 0]; // Silver: 1%, 2%, 3%
-        bonusPercentages[3] = [100, 100, 200, 200, 300, 0, 0, 0, 0, 0]; // Gold
+        bonusPercentages[3] = [100, 200, 300, 0, 0, 0, 0, 0, 0, 0]; // Gold: 1%, 2%, 3%
         bonusPercentages[4] = [100, 100, 100, 200, 200, 200, 300, 0, 0, 0]; // Platinum
         bonusPercentages[5] = [100, 100, 100, 100, 100, 100, 200, 300, 400, 0]; // Sapphire
-        bonusPercentages[6] = [100, 100, 100, 100, 100, 100, 200, 300, 400, 400]; // Ruby
+        bonusPercentages[6] = [100, 100, 100, 200, 200, 200, 300, 300, 300, 400]; // Ruby
         bonusPercentages[7] = [100, 100, 100, 200, 200, 200, 200, 300, 400, 500]; // Emerald
         bonusPercentages[8] = [100, 100, 200, 200, 200, 200, 200, 400, 600, 700]; // Diamond
         bonusPercentages[9] = [100, 200, 200, 200, 200, 300, 400, 500, 600, 700]; // Blue Diamond
@@ -44,19 +44,24 @@ contract AirdropBonus is Ownable {
         referrals[user].rank = rank;
     }
 
+    // Getter for tests
+    function referrers(address user) external view returns (address) {
+        return referrals[user].referrer;
+    }
+
     function distributeAirdrop(address buyer, uint256 purchaseAmount) external onlyOwner {
         address current = buyer;
-        
+
         for (uint256 level = 1; level <= LEVELS; level++) {
             current = referrals[current].referrer;
             if (current == address(0)) break;
-            
+
             uint256 userRank = referrals[current].rank;
             if (userRank == 0) continue;
-            
+
             uint256 basisPoints = bonusPercentages[userRank][level - 1];
             if (basisPoints == 0) continue;
-            
+
             uint256 bonus = (purchaseAmount * basisPoints) / 10000;
             if (bonus > 0) {
                 btnToken.transfer(current, bonus);

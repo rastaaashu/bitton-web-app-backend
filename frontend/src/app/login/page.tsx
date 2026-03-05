@@ -66,8 +66,10 @@ export default function LoginPage() {
     } catch (err: any) {
       if (err?.name === "UserRejectedRequestError" || err?.message?.includes("User rejected")) {
         setError("Signature rejected. Please try again.");
+      } else if (err?.message?.includes("fetch") || err?.message?.includes("network") || err?.name === "TypeError") {
+        setError("Cannot reach backend server. Is it running?");
       } else {
-        setError("Login failed. Please try again.");
+        setError(err?.message || "Login failed. Please try again.");
       }
     } finally {
       setLoading(false);

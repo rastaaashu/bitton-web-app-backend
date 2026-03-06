@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
 import { LayoutShell } from "@/components/layout/LayoutShell";
@@ -6,6 +6,13 @@ import { LayoutShell } from "@/components/layout/LayoutShell";
 export const metadata: Metadata = {
   title: "BitTON.AI",
   description: "BTN Staking & Rewards Platform",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({

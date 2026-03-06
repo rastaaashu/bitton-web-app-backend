@@ -454,6 +454,8 @@ function EmailRegister({ sponsorCode, agreed }: { sponsorCode: string; agreed: b
             <label className="block text-sm text-gray-400 mb-1">Verification Code</label>
             <input
               type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
               value={otp}
               onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
               placeholder="000000"

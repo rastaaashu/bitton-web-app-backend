@@ -57,7 +57,7 @@ export default function DashboardPage() {
 
       {/* Vault Status Banner */}
       {!vaultLoading && !isActive && (
-        <div className="bg-yellow-900/30 border border-yellow-700/50 rounded-xl p-4 mb-6 flex items-center justify-between">
+        <div className="bg-yellow-900/30 border border-yellow-700/50 rounded-xl p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
             <p className="text-yellow-300 font-medium">Vault Not Activated</p>
             <p className="text-yellow-400/70 text-sm">
@@ -66,7 +66,7 @@ export default function DashboardPage() {
           </div>
           <Link
             href="/vault"
-            className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+            className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
           >
             Activate Now
           </Link>
@@ -123,7 +123,7 @@ export default function DashboardPage() {
 
       {/* Active Stakes Table */}
       <h3 className="text-lg font-bold mb-4">Active Stakes</h3>
-      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
         {stakesLoading ? (
           <div className="p-6">
             <div className="space-y-3">

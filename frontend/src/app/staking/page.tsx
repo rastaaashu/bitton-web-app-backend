@@ -166,6 +166,7 @@ export default function StakingPage() {
           <div className="relative mb-4">
             <input
               type="text"
+              inputMode="decimal"
               placeholder="Amount (BTN)"
               value={amount}
               onChange={(e) => {
@@ -314,7 +315,7 @@ export default function StakingPage() {
 
       {/* Active Stakes Table */}
       <h3 className="text-lg font-bold mb-4">Your Stakes</h3>
-      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
         {stakesLoading ? (
           <div className="p-6 space-y-3">
             {[1, 2].map((i) => (

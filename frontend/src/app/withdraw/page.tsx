@@ -63,6 +63,7 @@ export default function WithdrawPage() {
         <div className="relative mb-2">
           <input
             type="text"
+            inputMode="decimal"
             placeholder="Amount to withdraw (BTN)"
             value={amount}
             onChange={(e) => {

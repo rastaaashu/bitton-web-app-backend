@@ -50,14 +50,14 @@ export function useVaultStatus() {
     abi: vmAbi,
     functionName: "isVaultActive",
     args: address ? [address] : undefined,
-    query: { enabled: !!address },
+    query: { enabled: !!address, refetchInterval: 10000 },
   });
   const tier = useReadContract({
     address: CONTRACTS.vaultManager,
     abi: vmAbi,
     functionName: "getUserTier",
     args: address ? [address] : undefined,
-    query: { enabled: !!address },
+    query: { enabled: !!address, refetchInterval: 10000 },
   });
   return {
     isActive: active.data as boolean | undefined,

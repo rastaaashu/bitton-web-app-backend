@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import { useWriteContract, useWaitForTransactionReceipt } from "wagmi";
+import { useQueryClient } from "@tanstack/react-query";
 import { CONTRACTS } from "@/config/contracts";
 import BTNTokenABI from "@/abi/BTNToken.json";
 import VaultManagerABI from "@/abi/VaultManager.json";
@@ -11,6 +13,16 @@ import WithdrawalWalletABI from "@/abi/WithdrawalWallet.json";
 import BonusEngineABI from "@/abi/BonusEngine.json";
 
 const btnAbi = BTNTokenABI.abi as readonly unknown[];
+
+/** Invalidate all wagmi readContract queries so UI refreshes after a tx */
+function useInvalidateOnSuccess(isSuccess: boolean) {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (isSuccess) {
+      queryClient.invalidateQueries({ queryKey: ["readContract"] });
+    }
+  }, [isSuccess, queryClient]);
+}
 const vmAbi = VaultManagerABI.abi as readonly unknown[];
 const svAbi = StakingVaultABI.abi as readonly unknown[];
 const reAbi = RewardEngineABI.abi as readonly unknown[];
@@ -22,6 +34,7 @@ const beAbi = BonusEngineABI.abi as readonly unknown[];
 export function useApproveToken() {
   const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  useInvalidateOnSuccess(isSuccess);
 
   return {
     approve: (tokenAddress: `0x${string}`, spender: `0x${string}`, amount: bigint) =>
@@ -44,6 +57,7 @@ export function useApproveToken() {
 export function useActivateVault() {
   const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  useInvalidateOnSuccess(isSuccess);
 
   return {
     activate: (tier: number) =>
@@ -66,6 +80,7 @@ export function useActivateVault() {
 export function useStake() {
   const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  useInvalidateOnSuccess(isSuccess);
 
   return {
     stake: (amount: bigint, programType: number) =>
@@ -88,6 +103,7 @@ export function useStake() {
 export function useUnstake() {
   const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  useInvalidateOnSuccess(isSuccess);
 
   return {
     unstake: (stakeIndex: number) =>
@@ -110,6 +126,7 @@ export function useUnstake() {
 export function useSettleRewards() {
   const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  useInvalidateOnSuccess(isSuccess);
 
   return {
     settle: (userAddress: `0x${string}`) =>
@@ -132,6 +149,7 @@ export function useSettleRewards() {
 export function useReleaseVesting() {
   const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  useInvalidateOnSuccess(isSuccess);
 
   return {
     release: (userAddress: `0x${string}`) =>
@@ -154,6 +172,7 @@ export function useReleaseVesting() {
 export function useWithdraw() {
   const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  useInvalidateOnSuccess(isSuccess);
 
   return {
     withdraw: (amount: bigint) =>
@@ -176,6 +195,7 @@ export function useWithdraw() {
 export function useRegisterReferrer() {
   const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  useInvalidateOnSuccess(isSuccess);
 
   return {
     register: (referrerAddress: `0x${string}`) =>
@@ -198,6 +218,7 @@ export function useRegisterReferrer() {
 export function useFundRewards() {
   const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  useInvalidateOnSuccess(isSuccess);
 
   return {
     fund: (amount: bigint) =>

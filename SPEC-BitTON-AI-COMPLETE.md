@@ -1,3 +1,4 @@
+
 # BitTON.AI — Complete Technical Specification v1.0
 
 **Last Updated:** February 27, 2026  

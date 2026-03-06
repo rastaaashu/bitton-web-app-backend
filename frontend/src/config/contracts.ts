@@ -1,5 +1,5 @@
 export const CONTRACTS = {
-  btnToken: "0xa874ae78f2A9f3EE6551ebdAf32f5B3bcF0a575D" as const,
+  btnToken: "0x5b964baafEDf002e5364F37848DCa1908D3e4e9f" as const,
   usdtToken: "0x1f15CdaACC32D6cA77FaaC8B080a3f2C0F597316" as const,
   vaultManager: "0xA2b5ffe829441768E8BB8Be49f8ADee0041Fa1b0" as const,
   stakingVault: "0x50d1516D6d5A4930623BCb7e1Ed28e9fAeA1e82F" as const,

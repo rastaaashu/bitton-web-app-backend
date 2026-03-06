@@ -29,7 +29,10 @@ async function sendViaHttpApi(
 ): Promise<string> {
   const provider = env.emailApiProvider;
   const apiKey = env.emailApiKey;
-  const from = env.smtpFrom;
+  // Use Resend's free onboarding domain if custom domain not verified
+  const from = env.smtpFrom.includes("@bitton.ai") && provider === "resend"
+    ? "BitTON.AI <onboarding@resend.dev>"
+    : env.smtpFrom;
 
   if (provider === "resend") {
     const res = await fetch("https://api.resend.com/emails", {

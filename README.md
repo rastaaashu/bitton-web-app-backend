@@ -1,93 +1,151 @@
-# bitton-web-app-backend
+# BitTON.AI Backend
 
+Node.js + TypeScript + Express + PostgreSQL + Prisma + ethers.js
 
+## Quick Start
 
-## Getting started
+```bash
+# 1. Start Postgres
+docker compose up -d
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+# 2. Install deps
+npm install
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+# 3. Generate Prisma client
+npx prisma generate
 
-## Add your files
+# 4. Push schema to DB
+npx prisma db push
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+# 5. Copy env file
+cp ../.env.example .env
+# Edit .env with your values
+
+# 6. Run dev server
+npm run dev
+```
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start dev server (ts-node) |
+| `npm run build` | Compile TypeScript to dist/ |
+| `npm start` | Run compiled dist/index.js |
+| `npm test` | Run Jest test suite |
+| `npx prisma studio` | Open Prisma DB browser |
+
+## Auth Flows
+
+### Email Registration
+1. `POST /auth/register-email` — email + password + optional sponsorCode
+2. `POST /auth/verify-email` — token from email
+3. `POST /auth/sponsor/confirm` — sponsor confirms referral (JWT required)
+4. `POST /auth/login-email` — returns JWT access + refresh tokens
+
+### Wallet Authentication
+1. `POST /auth/challenge` — get sign message for an EVM address
+2. `POST /auth/verify` — submit signature → returns JWT tokens
+
+### Account Linking
+- `POST /auth/link-email` — attach email to wallet-only account (JWT required)
+- `POST /auth/link-wallet` — attach wallet to email-only account (JWT required)
+
+### Sponsor Codes
+- `POST /sponsor/code/create` — create a sponsor code (JWT required)
+- `GET /sponsor/code/:code` — check code validity (public)
+
+## User Status Flow
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.bitton.ai/community/bitton-web-app-backend.git
-git branch -M main
-git push -uf origin main
+Email (no sponsor):   PENDING_EMAIL → verify email → CONFIRMED
+Email (with sponsor): PENDING_EMAIL → verify email → PENDING_SPONSOR → sponsor confirms → CONFIRMED
+Wallet-only:          → CONFIRMED (immediate)
 ```
 
-## Integrate with your tools
+## API Endpoints
 
-- [ ] [Set up project integrations](https://gitlab.bitton.ai/community/bitton-web-app-backend/-/settings/integrations)
+### Public
 
-## Collaborate with your team
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Health check (DB, RPC, relayer status) |
+| POST | `/auth/register-email` | Register with email + password |
+| POST | `/auth/verify-email` | Verify email token |
+| POST | `/auth/login-email` | Login with email + password |
+| POST | `/auth/challenge` | Request wallet sign-in challenge |
+| POST | `/auth/verify` | Verify wallet signature |
+| GET | `/sponsor/code/:code` | Check sponsor code validity |
+| GET | `/migration/status/:evmAddress` | Check migration status |
+| POST | `/migration/link-wallet` | Link TON wallet to EVM wallet |
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+### Authenticated (requires Bearer JWT)
 
-## Test and Deploy
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/auth/sponsor/confirm` | Confirm a referral |
+| POST | `/auth/link-email` | Link email to wallet account |
+| POST | `/auth/link-wallet` | Link wallet to email account |
+| POST | `/sponsor/code/create` | Create a sponsor code |
 
-Use the built-in continuous integration in GitLab.
+### Admin (requires `x-api-key` header)
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/admin/status` | System overview (on-chain + DB stats) |
+| POST | `/admin/ton/import-snapshot` | Import TON balance snapshot |
+| POST | `/admin/migration/build` | Build claims from linked wallets |
+| POST | `/admin/jobs/dispatch` | Dispatch pending migration batches |
+| POST | `/admin/jobs/distribute` | Create a distribute job |
+| GET | `/admin/jobs` | List operator jobs (paginated) |
+| GET | `/admin/audit` | View audit log |
 
-***
+## Architecture
 
-# Editing this README
+```
+backend/
+├── prisma/
+│   └── schema.prisma           # DB schema
+├── src/
+│   ├── config/
+│   │   ├── env.ts              # Environment variable loading
+│   │   └── contracts.ts        # ethers.js contract instances
+│   ├── routes/
+│   │   ├── health.ts           # Health check
+│   │   ├── auth.ts             # Email + wallet authentication
+│   │   ├── sponsor.ts          # Sponsor code management
+│   │   ├── admin.ts            # Admin endpoints
+│   │   └── migration.ts        # Migration status + wallet linking
+│   ├── services/
+│   │   ├── chain.service.ts    # On-chain operations
+│   │   ├── email.service.ts    # Email sending (SMTP / dev console)
+│   │   └── migration.service.ts # TON→Base migration pipeline
+│   ├── jobs/
+│   │   └── operator.runner.ts  # Background job runner
+│   ├── middleware/
+│   │   ├── adminAuth.ts        # API key auth
+│   │   └── jwtAuth.ts          # JWT verification middleware
+│   ├── utils/
+│   │   ├── logger.ts           # Winston logger
+│   │   ├── prisma.ts           # Prisma client singleton
+│   │   └── validation.ts       # Zod schemas
+│   ├── __tests__/
+│   │   ├── setup.ts            # Test environment setup
+│   │   └── auth.test.ts        # Auth unit tests (29 tests)
+│   └── index.ts                # Express app entry point
+├── docker-compose.yml          # Postgres for local dev
+├── jest.config.js              # Jest configuration
+└── package.json
+```
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+## Operator Job Runner
 
-## Suggestions for a good README
+Background job runner polls for pending jobs and executes on-chain:
+- Automatic retry (up to 3 attempts)
+- Idempotency keys prevent duplicates
+- Status tracking: PENDING → PROCESSING → CONFIRMED / FAILED
+- Audit logging for all operations
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+## Environment Variables
 
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+See `.env.example` in the project root for all required variables.

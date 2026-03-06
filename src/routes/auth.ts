@@ -1,0 +1,958 @@
+import { Router, Request, Response } from "express";
+import { ethers } from "ethers";
+import crypto from "crypto";
+import { prisma } from "../utils/prisma";
+import { logger } from "../utils/logger";
+import { jwtAuth, signAccessToken, signRefreshToken, JwtPayload } from "../middleware/jwtAuth";
+import { sendOtpEmail } from "../services/email.service";
+import { verifyTelegramAuth, TelegramLoginData } from "../utils/telegram";
+import {
+  registerWalletSchema,
+  registerEmailInitSchema,
+  verifyOtpSchema,
+  registerEmailCompleteSchema,
+  registerTelegramInitSchema,
+  registerTelegramCompleteSchema,
+  challengeSchema,
+  walletVerifySchema,
+  loginEmailInitSchema,
+  loginCompleteSchema,
+  loginTelegramInitSchema,
+} from "../utils/validation";
+import rateLimit from "express-rate-limit";
+
+const router = Router();
+
+const REFRESH_TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7d
+const SESSION_EXPIRY_MS = 30 * 60 * 1000; // 30 min
+const OTP_EXPIRY_MS = 10 * 60 * 1000; // 10 min
+const OTP_MAX_ATTEMPTS = 5;
+
+// Rate limiters
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: "Too many requests, try again later" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const otpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { error: "Too many OTP requests, try again later" },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// In-memory nonce store (use Redis in production)
+const challenges = new Map<string, { nonce: string; expiresAt: number }>();
+
+// ── Helpers ──
+
+function generateOtp(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+async function validateSponsorCode(code: string): Promise<{ valid: boolean; sponsorId?: string; error?: string }> {
+  const sc = await prisma.sponsorCode.findUnique({ where: { code } });
+  if (!sc || !sc.active) {
+    return { valid: false, error: "Invalid or inactive sponsor code" };
+  }
+  if (sc.maxUses > 0 && sc.usedCount >= sc.maxUses) {
+    return { valid: false, error: "Sponsor code usage limit reached" };
+  }
+  return { valid: true, sponsorId: sc.userId };
+}
+
+async function incrementSponsorCode(code: string): Promise<void> {
+  await prisma.sponsorCode.update({
+    where: { code },
+    data: { usedCount: { increment: 1 } },
+  });
+}
+
+async function createSession(userId: string, req: Request): Promise<{ accessToken: string; refreshToken: string }> {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new Error("User not found");
+
+  const payload: JwtPayload = {
+    userId: user.id,
+    email: user.email || undefined,
+    evmAddress: user.evmAddress || undefined,
+    telegramId: user.telegramId || undefined,
+  };
+
+  const accessToken = signAccessToken(payload);
+  const refreshToken = signRefreshToken(payload);
+
+  await prisma.loginSession.create({
+    data: {
+      userId: user.id,
+      refreshToken,
+      userAgent: req.headers["user-agent"] || null,
+      ipAddress: req.ip || null,
+      expiresAt: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_MS),
+    },
+  });
+
+  return { accessToken, refreshToken };
+}
+
+function userResponse(user: any) {
+  return {
+    id: user.id,
+    email: user.email,
+    status: user.status,
+    evmAddress: user.evmAddress,
+    telegramId: user.telegramId,
+    authMethod: user.authMethod,
+  };
+}
+
+// ════════════════════════════════════════
+// REGISTRATION: EVM WALLET
+// ════════════════════════════════════════
+router.post("/register/wallet", authLimiter, async (req: Request, res: Response) => {
+  try {
+    const parsed = registerWalletSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+    const { address, signature, message, sponsorCode } = parsed.data;
+    const normalizedAddr = address.toLowerCase();
+
+    // Verify wallet signature
+    const recovered = ethers.verifyMessage(message, signature);
+    if (recovered.toLowerCase() !== normalizedAddr) {
+      res.status(401).json({ error: "Wallet signature verification failed" });
+      return;
+    }
+
+    // Check duplicate wallet
+    const existingWallet = await prisma.user.findFirst({ where: { evmAddress: normalizedAddr } });
+    if (existingWallet) {
+      res.status(409).json({ error: "Wallet already registered" });
+      return;
+    }
+
+    // Validate sponsor
+    const sponsor = await validateSponsorCode(sponsorCode);
+    if (!sponsor.valid) {
+      res.status(400).json({ error: sponsor.error });
+      return;
+    }
+
+    // Create user (immediately CONFIRMED)
+    const user = await prisma.user.create({
+      data: {
+        evmAddress: normalizedAddr,
+        authMethod: "WALLET",
+        status: "CONFIRMED",
+        sponsorId: sponsor.sponsorId,
+      },
+    });
+
+    await incrementSponsorCode(sponsorCode);
+
+    const tokens = await createSession(user.id, req);
+
+    await prisma.auditLog.create({
+      data: { actor: normalizedAddr, action: "auth.register.wallet", target: user.id },
+    });
+
+    res.status(201).json({
+      ...tokens,
+      user: userResponse(user),
+    });
+  } catch (err: any) {
+    logger.error("Register wallet error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ════════════════════════════════════════
+// REGISTRATION: EMAIL - Step 1 (send OTP)
+// ════════════════════════════════════════
+router.post("/register/email/init", otpLimiter, async (req: Request, res: Response) => {
+  try {
+    const parsed = registerEmailInitSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+    const email = parsed.data.email.toLowerCase();
+
+    // Check if email already registered
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      res.status(409).json({ error: "Email already registered" });
+      return;
+    }
+
+    // Create pending session
+    const session = await prisma.pendingSession.create({
+      data: {
+        type: "REGISTER_EMAIL",
+        email,
+        expiresAt: new Date(Date.now() + SESSION_EXPIRY_MS),
+      },
+    });
+
+    // Generate and store OTP
+    const otp = generateOtp();
+    await prisma.otpCode.create({
+      data: {
+        sessionId: session.id,
+        code: otp,
+        expiresAt: new Date(Date.now() + OTP_EXPIRY_MS),
+      },
+    });
+
+    // Send OTP email
+    await sendOtpEmail(email, otp);
+
+    await prisma.auditLog.create({
+      data: { actor: email, action: "auth.register.email.init", target: session.id },
+    });
+
+    res.json({ sessionId: session.id, message: "Verification code sent to your email" });
+  } catch (err: any) {
+    logger.error("Register email init error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ════════════════════════════════════════
+// REGISTRATION/LOGIN: Verify OTP (shared)
+// ════════════════════════════════════════
+router.post("/verify-otp", authLimiter, async (req: Request, res: Response) => {
+  try {
+    const parsed = verifyOtpSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+    const { sessionId, otp } = parsed.data;
+
+    const session = await prisma.pendingSession.findUnique({
+      where: { id: sessionId },
+      include: { otpCodes: { orderBy: { createdAt: "desc" }, take: 1 } },
+    });
+
+    if (!session || session.expiresAt < new Date()) {
+      res.status(400).json({ error: "Session expired or not found. Please start over." });
+      return;
+    }
+
+    if (session.verified) {
+      res.json({ sessionId, verified: true, message: "Already verified" });
+      return;
+    }
+
+    const latestOtp = session.otpCodes[0];
+    if (!latestOtp) {
+      res.status(400).json({ error: "No OTP found for this session" });
+      return;
+    }
+
+    if (latestOtp.usedAt) {
+      res.status(400).json({ error: "OTP already used. Request a new one." });
+      return;
+    }
+
+    if (latestOtp.expiresAt < new Date()) {
+      res.status(400).json({ error: "OTP expired. Request a new one." });
+      return;
+    }
+
+    if (latestOtp.attempts >= OTP_MAX_ATTEMPTS) {
+      res.status(429).json({ error: "Too many failed attempts. Request a new OTP." });
+      return;
+    }
+
+    if (latestOtp.code !== otp) {
+      await prisma.otpCode.update({
+        where: { id: latestOtp.id },
+        data: { attempts: { increment: 1 } },
+      });
+      res.status(400).json({ error: "Invalid verification code" });
+      return;
+    }
+
+    // Mark OTP as used and session as verified
+    await prisma.otpCode.update({
+      where: { id: latestOtp.id },
+      data: { usedAt: new Date() },
+    });
+
+    await prisma.pendingSession.update({
+      where: { id: sessionId },
+      data: { verified: true },
+    });
+
+    res.json({ sessionId, verified: true, message: "Email verified successfully" });
+  } catch (err: any) {
+    logger.error("Verify OTP error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ════════════════════════════════════════
+// RESEND OTP (for email flows)
+// ════════════════════════════════════════
+router.post("/resend-otp", otpLimiter, async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.body;
+    if (!sessionId) {
+      res.status(400).json({ error: "Session ID is required" });
+      return;
+    }
+
+    const session = await prisma.pendingSession.findUnique({ where: { id: sessionId } });
+    if (!session || session.expiresAt < new Date()) {
+      res.status(400).json({ error: "Session expired or not found. Please start over." });
+      return;
+    }
+
+    if (session.verified) {
+      res.status(400).json({ error: "Session already verified" });
+      return;
+    }
+
+    if (!session.email) {
+      res.status(400).json({ error: "No email associated with this session" });
+      return;
+    }
+
+    const otp = generateOtp();
+    await prisma.otpCode.create({
+      data: {
+        sessionId: session.id,
+        code: otp,
+        expiresAt: new Date(Date.now() + OTP_EXPIRY_MS),
+      },
+    });
+
+    await sendOtpEmail(session.email, otp);
+
+    res.json({ message: "New verification code sent" });
+  } catch (err: any) {
+    logger.error("Resend OTP error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ════════════════════════════════════════
+// REGISTRATION: EMAIL - Step 3 (complete with wallet)
+// ════════════════════════════════════════
+router.post("/register/email/complete", authLimiter, async (req: Request, res: Response) => {
+  try {
+    const parsed = registerEmailCompleteSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+    const { sessionId, sponsorCode, address, signature, message } = parsed.data;
+    const normalizedAddr = address.toLowerCase();
+
+    // Validate session
+    const session = await prisma.pendingSession.findUnique({ where: { id: sessionId } });
+    if (!session || session.expiresAt < new Date()) {
+      res.status(400).json({ error: "Session expired. Please start over." });
+      return;
+    }
+    if (!session.verified) {
+      res.status(400).json({ error: "Email not verified. Please verify your OTP first." });
+      return;
+    }
+    if (session.type !== "REGISTER_EMAIL") {
+      res.status(400).json({ error: "Invalid session type" });
+      return;
+    }
+
+    // Verify wallet signature
+    const recovered = ethers.verifyMessage(message, signature);
+    if (recovered.toLowerCase() !== normalizedAddr) {
+      res.status(401).json({ error: "Wallet signature verification failed" });
+      return;
+    }
+
+    // Check duplicates
+    const existingEmail = await prisma.user.findUnique({ where: { email: session.email! } });
+    if (existingEmail) {
+      res.status(409).json({ error: "Email already registered" });
+      return;
+    }
+
+    const existingWallet = await prisma.user.findFirst({ where: { evmAddress: normalizedAddr } });
+    if (existingWallet) {
+      res.status(409).json({ error: "Wallet already registered to another account" });
+      return;
+    }
+
+    // Validate sponsor
+    const sponsor = await validateSponsorCode(sponsorCode);
+    if (!sponsor.valid) {
+      res.status(400).json({ error: sponsor.error });
+      return;
+    }
+
+    // Create user
+    const user = await prisma.user.create({
+      data: {
+        email: session.email!,
+        evmAddress: normalizedAddr,
+        authMethod: "EMAIL",
+        status: "CONFIRMED",
+        emailVerifiedAt: new Date(),
+        sponsorId: sponsor.sponsorId,
+      },
+    });
+
+    await incrementSponsorCode(sponsorCode);
+
+    // Clean up session
+    await prisma.pendingSession.delete({ where: { id: sessionId } });
+
+    const tokens = await createSession(user.id, req);
+
+    await prisma.auditLog.create({
+      data: { actor: session.email!, action: "auth.register.email.complete", target: user.id },
+    });
+
+    res.status(201).json({
+      ...tokens,
+      user: userResponse(user),
+    });
+  } catch (err: any) {
+    logger.error("Register email complete error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ════════════════════════════════════════
+// REGISTRATION: TELEGRAM - Step 1 (verify widget)
+// ════════════════════════════════════════
+router.post("/register/telegram/init", authLimiter, async (req: Request, res: Response) => {
+  try {
+    const parsed = registerTelegramInitSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+
+    const telegramData = parsed.data as TelegramLoginData;
+
+    // Verify Telegram auth
+    if (!verifyTelegramAuth(telegramData)) {
+      res.status(401).json({ error: "Telegram authentication failed. Ensure TELEGRAM_BOT_TOKEN is configured." });
+      return;
+    }
+
+    const telegramId = telegramData.id.toString();
+
+    // Check if telegram ID already registered
+    const existing = await prisma.user.findFirst({ where: { telegramId } });
+    if (existing) {
+      res.status(409).json({ error: "Telegram account already registered" });
+      return;
+    }
+
+    // Create pending session
+    const session = await prisma.pendingSession.create({
+      data: {
+        type: "REGISTER_TELEGRAM",
+        telegramId,
+        telegramData: JSON.stringify(telegramData),
+        verified: true, // Telegram widget already verified
+        expiresAt: new Date(Date.now() + SESSION_EXPIRY_MS),
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: { actor: `tg:${telegramId}`, action: "auth.register.telegram.init", target: session.id },
+    });
+
+    res.json({
+      sessionId: session.id,
+      telegramUser: {
+        id: telegramData.id,
+        firstName: telegramData.first_name,
+        username: telegramData.username,
+      },
+      message: "Telegram verified. Please connect your wallet to complete registration.",
+    });
+  } catch (err: any) {
+    logger.error("Register telegram init error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ════════════════════════════════════════
+// REGISTRATION: TELEGRAM - Step 2 (complete with wallet)
+// ════════════════════════════════════════
+router.post("/register/telegram/complete", authLimiter, async (req: Request, res: Response) => {
+  try {
+    const parsed = registerTelegramCompleteSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+    const { sessionId, sponsorCode, address, signature, message } = parsed.data;
+    const normalizedAddr = address.toLowerCase();
+
+    // Validate session
+    const session = await prisma.pendingSession.findUnique({ where: { id: sessionId } });
+    if (!session || session.expiresAt < new Date()) {
+      res.status(400).json({ error: "Session expired. Please start over." });
+      return;
+    }
+    if (!session.verified || session.type !== "REGISTER_TELEGRAM") {
+      res.status(400).json({ error: "Invalid session" });
+      return;
+    }
+
+    // Verify wallet signature
+    const recovered = ethers.verifyMessage(message, signature);
+    if (recovered.toLowerCase() !== normalizedAddr) {
+      res.status(401).json({ error: "Wallet signature verification failed" });
+      return;
+    }
+
+    // Check duplicates
+    const existingTelegram = await prisma.user.findFirst({ where: { telegramId: session.telegramId! } });
+    if (existingTelegram) {
+      res.status(409).json({ error: "Telegram account already registered" });
+      return;
+    }
+
+    const existingWallet = await prisma.user.findFirst({ where: { evmAddress: normalizedAddr } });
+    if (existingWallet) {
+      res.status(409).json({ error: "Wallet already registered to another account" });
+      return;
+    }
+
+    // Validate sponsor
+    const sponsor = await validateSponsorCode(sponsorCode);
+    if (!sponsor.valid) {
+      res.status(400).json({ error: sponsor.error });
+      return;
+    }
+
+    // Create user
+    const user = await prisma.user.create({
+      data: {
+        telegramId: session.telegramId!,
+        evmAddress: normalizedAddr,
+        authMethod: "TELEGRAM",
+        status: "CONFIRMED",
+        sponsorId: sponsor.sponsorId,
+      },
+    });
+
+    await incrementSponsorCode(sponsorCode);
+
+    await prisma.pendingSession.delete({ where: { id: sessionId } });
+
+    const tokens = await createSession(user.id, req);
+
+    await prisma.auditLog.create({
+      data: { actor: `tg:${session.telegramId}`, action: "auth.register.telegram.complete", target: user.id },
+    });
+
+    res.status(201).json({
+      ...tokens,
+      user: userResponse(user),
+    });
+  } catch (err: any) {
+    logger.error("Register telegram complete error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ════════════════════════════════════════
+// LOGIN: WALLET - Step 1 (challenge)
+// ════════════════════════════════════════
+router.post("/login/wallet/challenge", authLimiter, async (req: Request, res: Response) => {
+  try {
+    const parsed = challengeSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+    const { address } = parsed.data;
+
+    const nonce = crypto.randomBytes(32).toString("hex");
+    const message = `Sign this message to authenticate with BitTON.AI\n\nNonce: ${nonce}\nAddress: ${address}\nTimestamp: ${new Date().toISOString()}`;
+
+    challenges.set(address.toLowerCase(), {
+      nonce,
+      expiresAt: Date.now() + 5 * 60 * 1000,
+    });
+
+    res.json({ message, nonce });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ════════════════════════════════════════
+// LOGIN: WALLET - Step 2 (verify signature)
+// ════════════════════════════════════════
+router.post("/login/wallet/verify", authLimiter, async (req: Request, res: Response) => {
+  try {
+    const parsed = walletVerifySchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+    const { address, signature, message } = parsed.data;
+    const normalizedAddr = address.toLowerCase();
+
+    const challenge = challenges.get(normalizedAddr);
+    if (!challenge || challenge.expiresAt < Date.now()) {
+      res.status(401).json({ error: "Challenge expired or not found. Please try again." });
+      return;
+    }
+
+    const recovered = ethers.verifyMessage(message, signature);
+    if (recovered.toLowerCase() !== normalizedAddr) {
+      res.status(401).json({ error: "Signature verification failed" });
+      return;
+    }
+
+    challenges.delete(normalizedAddr);
+
+    const user = await prisma.user.findFirst({ where: { evmAddress: normalizedAddr } });
+    if (!user) {
+      res.status(404).json({ error: "No account found for this wallet. Please register first." });
+      return;
+    }
+    if (user.status !== "CONFIRMED") {
+      res.status(403).json({ error: `Account not confirmed. Current status: ${user.status}` });
+      return;
+    }
+
+    const tokens = await createSession(user.id, req);
+
+    await prisma.auditLog.create({
+      data: { actor: normalizedAddr, action: "auth.login.wallet", target: user.id },
+    });
+
+    res.json({
+      ...tokens,
+      user: userResponse(user),
+    });
+  } catch (err: any) {
+    logger.error("Wallet login error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ════════════════════════════════════════
+// LOGIN: EMAIL - Step 1 (send OTP)
+// ════════════════════════════════════════
+router.post("/login/email/init", otpLimiter, async (req: Request, res: Response) => {
+  try {
+    const parsed = loginEmailInitSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+    const email = parsed.data.email.toLowerCase();
+
+    // Check if user exists with this email
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      // Don't reveal whether email exists - still send a generic response
+      // but don't actually send an OTP
+      res.json({ sessionId: crypto.randomUUID(), message: "If this email is registered, a verification code has been sent." });
+      return;
+    }
+
+    // Create pending session
+    const session = await prisma.pendingSession.create({
+      data: {
+        type: "LOGIN_EMAIL",
+        email,
+        expiresAt: new Date(Date.now() + SESSION_EXPIRY_MS),
+      },
+    });
+
+    const otp = generateOtp();
+    await prisma.otpCode.create({
+      data: {
+        sessionId: session.id,
+        code: otp,
+        expiresAt: new Date(Date.now() + OTP_EXPIRY_MS),
+      },
+    });
+
+    await sendOtpEmail(email, otp);
+
+    res.json({ sessionId: session.id, message: "If this email is registered, a verification code has been sent." });
+  } catch (err: any) {
+    logger.error("Login email init error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ════════════════════════════════════════
+// LOGIN: EMAIL - Step 3 (complete with wallet)
+// ════════════════════════════════════════
+router.post("/login/email/complete", authLimiter, async (req: Request, res: Response) => {
+  try {
+    const parsed = loginCompleteSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+    const { sessionId, address, signature, message } = parsed.data;
+    const normalizedAddr = address.toLowerCase();
+
+    // Validate session
+    const session = await prisma.pendingSession.findUnique({ where: { id: sessionId } });
+    if (!session || session.expiresAt < new Date()) {
+      res.status(400).json({ error: "Session expired. Please start over." });
+      return;
+    }
+    if (!session.verified || session.type !== "LOGIN_EMAIL") {
+      res.status(400).json({ error: "Email not verified. Please verify your OTP first." });
+      return;
+    }
+
+    // Verify wallet signature
+    const recovered = ethers.verifyMessage(message, signature);
+    if (recovered.toLowerCase() !== normalizedAddr) {
+      res.status(401).json({ error: "Wallet signature verification failed" });
+      return;
+    }
+
+    // Find user by email
+    const user = await prisma.user.findUnique({ where: { email: session.email! } });
+    if (!user) {
+      res.status(404).json({ error: "Account not found" });
+      return;
+    }
+
+    // Verify wallet matches the user's registered wallet
+    if (user.evmAddress && user.evmAddress !== normalizedAddr) {
+      res.status(403).json({ error: "Wallet does not match the registered wallet for this account" });
+      return;
+    }
+
+    if (user.status !== "CONFIRMED") {
+      res.status(403).json({ error: `Account not confirmed. Current status: ${user.status}` });
+      return;
+    }
+
+    await prisma.pendingSession.delete({ where: { id: sessionId } });
+
+    const tokens = await createSession(user.id, req);
+
+    await prisma.auditLog.create({
+      data: { actor: session.email!, action: "auth.login.email", target: user.id },
+    });
+
+    res.json({
+      ...tokens,
+      user: userResponse(user),
+    });
+  } catch (err: any) {
+    logger.error("Login email complete error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ════════════════════════════════════════
+// LOGIN: TELEGRAM - Step 1 (verify widget)
+// ════════════════════════════════════════
+router.post("/login/telegram/init", authLimiter, async (req: Request, res: Response) => {
+  try {
+    const parsed = loginTelegramInitSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+
+    const telegramData = parsed.data as TelegramLoginData;
+
+    if (!verifyTelegramAuth(telegramData)) {
+      res.status(401).json({ error: "Telegram authentication failed" });
+      return;
+    }
+
+    const telegramId = telegramData.id.toString();
+
+    // Check user exists
+    const user = await prisma.user.findFirst({ where: { telegramId } });
+    if (!user) {
+      res.status(404).json({ error: "No account found for this Telegram user. Please register first." });
+      return;
+    }
+
+    // Create pending session
+    const session = await prisma.pendingSession.create({
+      data: {
+        type: "LOGIN_TELEGRAM",
+        telegramId,
+        telegramData: JSON.stringify(telegramData),
+        verified: true,
+        expiresAt: new Date(Date.now() + SESSION_EXPIRY_MS),
+      },
+    });
+
+    res.json({
+      sessionId: session.id,
+      message: "Telegram verified. Please connect your wallet to complete login.",
+    });
+  } catch (err: any) {
+    logger.error("Login telegram init error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ════════════════════════════════════════
+// LOGIN: TELEGRAM - Step 2 (complete with wallet)
+// ════════════════════════════════════════
+router.post("/login/telegram/complete", authLimiter, async (req: Request, res: Response) => {
+  try {
+    const parsed = loginCompleteSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+    const { sessionId, address, signature, message } = parsed.data;
+    const normalizedAddr = address.toLowerCase();
+
+    const session = await prisma.pendingSession.findUnique({ where: { id: sessionId } });
+    if (!session || session.expiresAt < new Date()) {
+      res.status(400).json({ error: "Session expired. Please start over." });
+      return;
+    }
+    if (!session.verified || session.type !== "LOGIN_TELEGRAM") {
+      res.status(400).json({ error: "Invalid session" });
+      return;
+    }
+
+    // Verify wallet signature
+    const recovered = ethers.verifyMessage(message, signature);
+    if (recovered.toLowerCase() !== normalizedAddr) {
+      res.status(401).json({ error: "Wallet signature verification failed" });
+      return;
+    }
+
+    // Find user by telegram ID
+    const user = await prisma.user.findFirst({ where: { telegramId: session.telegramId! } });
+    if (!user) {
+      res.status(404).json({ error: "Account not found" });
+      return;
+    }
+
+    // Verify wallet matches
+    if (user.evmAddress && user.evmAddress !== normalizedAddr) {
+      res.status(403).json({ error: "Wallet does not match the registered wallet for this account" });
+      return;
+    }
+
+    if (user.status !== "CONFIRMED") {
+      res.status(403).json({ error: `Account not confirmed. Current status: ${user.status}` });
+      return;
+    }
+
+    await prisma.pendingSession.delete({ where: { id: sessionId } });
+
+    const tokens = await createSession(user.id, req);
+
+    await prisma.auditLog.create({
+      data: { actor: `tg:${session.telegramId}`, action: "auth.login.telegram", target: user.id },
+    });
+
+    res.json({
+      ...tokens,
+      user: userResponse(user),
+    });
+  } catch (err: any) {
+    logger.error("Login telegram complete error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ════════════════════════════════════════
+// TOKEN: Refresh
+// ════════════════════════════════════════
+router.post("/refresh", async (req: Request, res: Response) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      res.status(400).json({ error: "Refresh token is required" });
+      return;
+    }
+
+    const session = await prisma.loginSession.findUnique({ where: { refreshToken } });
+    if (!session || session.revokedAt || session.expiresAt < new Date()) {
+      res.status(401).json({ error: "Invalid or expired refresh token" });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: session.userId } });
+    if (!user) {
+      res.status(401).json({ error: "User not found" });
+      return;
+    }
+
+    const payload: JwtPayload = {
+      userId: user.id,
+      email: user.email || undefined,
+      evmAddress: user.evmAddress || undefined,
+      telegramId: user.telegramId || undefined,
+    };
+
+    const accessToken = signAccessToken(payload);
+
+    res.json({
+      accessToken,
+      user: userResponse(user),
+    });
+  } catch (err: any) {
+    logger.error("Refresh token error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ════════════════════════════════════════
+// TOKEN: Logout
+// ════════════════════════════════════════
+router.post("/logout", async (req: Request, res: Response) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      res.status(400).json({ error: "Refresh token is required" });
+      return;
+    }
+
+    await prisma.loginSession.updateMany({
+      where: { refreshToken, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
+    res.json({ success: true });
+  } catch (err: any) {
+    logger.error("Logout error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ════════════════════════════════════════
+// INFO: Get Telegram bot config (for frontend widget)
+// ════════════════════════════════════════
+router.get("/telegram/config", (_req: Request, res: Response) => {
+  res.json({
+    botUsername: process.env.TELEGRAM_BOT_USERNAME || "",
+    configured: !!(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_BOT_USERNAME),
+  });
+});
+
+export default router;

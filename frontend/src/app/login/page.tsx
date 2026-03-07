@@ -8,12 +8,12 @@ import { useAccount, useSignMessage } from "wagmi";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_BASE_URL } from "@/config/constants";
 
-type AuthTab = "wallet" | "email" | "telegram";
+type AuthTab = "email" | "telegram";
 
 export default function LoginPage() {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<AuthTab>("wallet");
+  const [activeTab, setActiveTab] = useState<AuthTab>("email");
   const [agreed, setAgreed] = useState(false);
 
   useEffect(() => {
@@ -21,7 +21,6 @@ export default function LoginPage() {
   }, [isAuthenticated, router]);
 
   const tabs: { key: AuthTab; label: string }[] = [
-    { key: "wallet", label: "EVM Wallet" },
     { key: "email", label: "Email" },
     { key: "telegram", label: "Telegram" },
   ];
@@ -31,7 +30,7 @@ export default function LoginPage() {
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 max-w-md w-full">
         <h2 className="text-2xl font-bold mb-2 text-center">Welcome to BitTON.AI</h2>
         <p className="text-gray-400 text-sm text-center mb-6">
-          Choose a method to sign in
+          Verify your identity, then connect your wallet
         </p>
 
         {/* Tabs */}
@@ -51,7 +50,6 @@ export default function LoginPage() {
           ))}
         </div>
 
-        {activeTab === "wallet" && <WalletLogin agreed={agreed} />}
         {activeTab === "email" && <EmailLogin agreed={agreed} />}
         {activeTab === "telegram" && <TelegramLogin agreed={agreed} />}
 
@@ -77,84 +75,6 @@ export default function LoginPage() {
           </Link>
         </p>
       </div>
-    </div>
-  );
-}
-
-// ── Wallet Login ──
-function WalletLogin({ agreed }: { agreed: boolean }) {
-  const { isConnected, address } = useAccount();
-  const { signMessageAsync } = useSignMessage();
-  const { login } = useAuth();
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const handleLogin = async () => {
-    if (!address) return;
-    setLoading(true);
-    setError("");
-
-    try {
-      // Step 1: Get challenge
-      const challengeRes = await fetch(`${API_BASE_URL}/auth/login/wallet/challenge`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address }),
-      });
-      if (!challengeRes.ok) {
-        const d = await challengeRes.json().catch(() => ({}));
-        setError(d.error || "Failed to get challenge");
-        return;
-      }
-      const { message } = await challengeRes.json();
-
-      // Step 2: Sign
-      const signature = await signMessageAsync({ message });
-
-      // Step 3: Verify
-      const verifyRes = await fetch(`${API_BASE_URL}/auth/login/wallet/verify`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address, signature, message }),
-      });
-      const data = await verifyRes.json();
-      if (!verifyRes.ok) {
-        setError(data.error || "Login failed");
-        return;
-      }
-
-      login(data.accessToken, data.refreshToken, data.user);
-      router.replace("/dashboard");
-    } catch (err: any) {
-      if (err?.message?.includes("User rejected")) {
-        setError("Signature rejected.");
-      } else if (err?.message?.includes("fetch") || err?.name === "TypeError") {
-        setError("Cannot reach backend server. Is it running?");
-      } else {
-        setError(err?.message || "Login failed.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-gray-400">Connect your wallet and sign a message to log in.</p>
-      <div className="flex justify-center">
-        <ConnectButton />
-      </div>
-      {isConnected && (
-        <button
-          onClick={handleLogin}
-          disabled={loading || !agreed}
-          className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white py-2.5 rounded-lg font-medium transition-colors"
-        >
-          {loading ? "Signing in..." : "Sign in"}
-        </button>
-      )}
-      {error && <p className="text-sm text-red-400">{error}</p>}
     </div>
   );
 }

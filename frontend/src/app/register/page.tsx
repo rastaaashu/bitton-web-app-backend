@@ -8,7 +8,7 @@ import { useAccount, useSignMessage } from "wagmi";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_BASE_URL } from "@/config/constants";
 
-type AuthTab = "wallet" | "email" | "telegram";
+type AuthTab = "email" | "telegram";
 
 const REF_STORAGE_KEY = "bitton_ref_code";
 
@@ -62,7 +62,7 @@ function RegisterContent() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
   const sponsorCode = useSponsorCode();
-  const [activeTab, setActiveTab] = useState<AuthTab>("wallet");
+  const [activeTab, setActiveTab] = useState<AuthTab>("email");
   const [ready, setReady] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [refValid, setRefValid] = useState<boolean | null>(null); // null = checking
@@ -149,7 +149,6 @@ function RegisterContent() {
   }
 
   const tabs: { key: AuthTab; label: string }[] = [
-    { key: "wallet", label: "EVM Wallet" },
     { key: "email", label: "Email" },
     { key: "telegram", label: "Telegram" },
   ];
@@ -181,7 +180,6 @@ function RegisterContent() {
           ))}
         </div>
 
-        {activeTab === "wallet" && <WalletRegister sponsorCode={sponsorCode} agreed={agreed} />}
         {activeTab === "email" && <EmailRegister sponsorCode={sponsorCode} agreed={agreed} />}
         {activeTab === "telegram" && <TelegramRegister sponsorCode={sponsorCode} agreed={agreed} />}
 
@@ -207,72 +205,6 @@ function RegisterContent() {
           </Link>
         </p>
       </div>
-    </div>
-  );
-}
-
-// ── Wallet Registration ──
-function WalletRegister({ sponsorCode, agreed }: { sponsorCode: string; agreed: boolean }) {
-  const { isConnected, address } = useAccount();
-  const { signMessageAsync } = useSignMessage();
-  const { login } = useAuth();
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const handleRegister = async () => {
-    if (!address) return;
-    setLoading(true);
-    setError("");
-
-    try {
-      const timestamp = new Date().toISOString();
-      const message = `Sign this message to register with BitTON.AI\n\nAddress: ${address}\nTimestamp: ${timestamp}`;
-      const signature = await signMessageAsync({ message });
-
-      const res = await fetch(`${API_BASE_URL}/auth/register/wallet`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address, signature, message, sponsorCode }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Registration failed");
-        return;
-      }
-
-      // Clear stored ref code on successful registration
-      localStorage.removeItem(REF_STORAGE_KEY);
-      login(data.accessToken, data.refreshToken, data.user);
-      router.replace("/dashboard");
-    } catch (err: any) {
-      if (err?.message?.includes("User rejected")) {
-        setError("Signature rejected.");
-      } else {
-        setError("Unable to connect to server. Please wait a moment and try again.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-gray-400">Connect your wallet and sign a message to register.</p>
-      <div className="flex justify-center">
-        <ConnectButton />
-      </div>
-      {isConnected && (
-        <button
-          onClick={handleRegister}
-          disabled={loading || !agreed}
-          className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white py-2.5 rounded-lg font-medium transition-colors"
-        >
-          {loading ? "Registering..." : "Sign & Register"}
-        </button>
-      )}
-      {error && <p className="text-sm text-red-400">{error}</p>}
     </div>
   );
 }

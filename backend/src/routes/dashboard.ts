@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { ethers } from "ethers";
 import { logger } from "../utils/logger";
+import { blockCache } from "../utils/cache";
 import {
   getProvider,
   getBtnTokenContract,
@@ -231,128 +232,132 @@ router.get("/history/:address", async (req: Request, res: Response) => {
       ).catch(() => []),
     ]);
 
-    // Format all events into a unified history
+    // Collect all events into a flat list for batch processing
+    const allEvents = [
+      ...stakeEvents.map((ev) => ({ ev, type: "STAKE" as const })),
+      ...unstakeEvents.map((ev) => ({ ev, type: "UNSTAKE" as const })),
+      ...withdrawEvents.map((ev) => ({ ev, type: "WITHDRAWAL" as const })),
+      ...vestingAddedEvents.map((ev) => ({ ev, type: "VESTING_ADDED" as const })),
+      ...vestingReleasedEvents.map((ev) => ({ ev, type: "VESTING_RELEASED" as const })),
+      ...settlementEvents.map((ev) => ({ ev, type: "WEEKLY_SETTLEMENT" as const })),
+      ...directBonusEvents.map((ev) => ({ ev, type: "DIRECT_BONUS" as const })),
+      ...matchingBonusEvents.map((ev) => ({ ev, type: "MATCHING_BONUS" as const })),
+    ];
+
+    // Batch-fetch all unique block timestamps (with cache)
+    const BLOCK_CACHE_TTL = 60 * 60 * 1000; // 1 hour — block timestamps never change
+    const uniqueBlockNumbers = new Set<number>();
+    for (const { ev } of allEvents) {
+      const log = ev as ethers.EventLog;
+      uniqueBlockNumbers.add(log.blockNumber);
+    }
+
+    // Check cache first, fetch only uncached blocks
+    const blockTimestampMap = new Map<number, number>();
+    const uncachedBlocks: number[] = [];
+    for (const bn of uniqueBlockNumbers) {
+      const cached = blockCache.get(String(bn));
+      if (cached !== undefined) {
+        blockTimestampMap.set(bn, cached);
+      } else {
+        uncachedBlocks.push(bn);
+      }
+    }
+
+    // Fetch uncached blocks in parallel
+    if (uncachedBlocks.length > 0) {
+      const blocks = await Promise.all(
+        uncachedBlocks.map((bn) => provider.getBlock(bn))
+      );
+      for (let i = 0; i < uncachedBlocks.length; i++) {
+        const ts = Number(blocks[i]?.timestamp ?? 0);
+        blockTimestampMap.set(uncachedBlocks[i], ts);
+        blockCache.set(String(uncachedBlocks[i]), ts, BLOCK_CACHE_TTL);
+      }
+    }
+
+    // Format all events using the pre-fetched timestamp map
     const history: any[] = [];
 
-    for (const ev of stakeEvents) {
+    for (const { ev, type } of allEvents) {
       const log = ev as ethers.EventLog;
-      const block = await provider.getBlock(log.blockNumber);
-      history.push({
-        type: "STAKE",
+      const timestamp = blockTimestampMap.get(log.blockNumber) ?? 0;
+      const base = {
+        type,
         txHash: log.transactionHash,
         blockNumber: log.blockNumber,
-        timestamp: block?.timestamp || 0,
-        data: {
-          amount: ethers.formatUnits(log.args[1], 6),
-          programType: Number(log.args[2]) === 0 ? "SHORT" : "LONG",
-          stakeIndex: Number(log.args[3]),
-        },
-      });
-    }
+        timestamp,
+      };
 
-    for (const ev of unstakeEvents) {
-      const log = ev as ethers.EventLog;
-      const block = await provider.getBlock(log.blockNumber);
-      history.push({
-        type: "UNSTAKE",
-        txHash: log.transactionHash,
-        blockNumber: log.blockNumber,
-        timestamp: block?.timestamp || 0,
-        data: {
-          stakeIndex: Number(log.args[1]),
-          amount: ethers.formatUnits(log.args[2], 6),
-          penalty: ethers.formatUnits(log.args[3], 6),
-        },
-      });
-    }
-
-    for (const ev of withdrawEvents) {
-      const log = ev as ethers.EventLog;
-      const block = await provider.getBlock(log.blockNumber);
-      history.push({
-        type: "WITHDRAWAL",
-        txHash: log.transactionHash,
-        blockNumber: log.blockNumber,
-        timestamp: block?.timestamp || 0,
-        data: {
-          amount: ethers.formatUnits(log.args[1], 6),
-        },
-      });
-    }
-
-    for (const ev of vestingAddedEvents) {
-      const log = ev as ethers.EventLog;
-      const block = await provider.getBlock(log.blockNumber);
-      history.push({
-        type: "VESTING_ADDED",
-        txHash: log.transactionHash,
-        blockNumber: log.blockNumber,
-        timestamp: block?.timestamp || 0,
-        data: {
-          amount: ethers.formatUnits(log.args[1], 6),
-        },
-      });
-    }
-
-    for (const ev of vestingReleasedEvents) {
-      const log = ev as ethers.EventLog;
-      const block = await provider.getBlock(log.blockNumber);
-      history.push({
-        type: "VESTING_RELEASED",
-        txHash: log.transactionHash,
-        blockNumber: log.blockNumber,
-        timestamp: block?.timestamp || 0,
-        data: {
-          amount: ethers.formatUnits(log.args[1], 6),
-        },
-      });
-    }
-
-    for (const ev of settlementEvents) {
-      const log = ev as ethers.EventLog;
-      const block = await provider.getBlock(log.blockNumber);
-      history.push({
-        type: "WEEKLY_SETTLEMENT",
-        txHash: log.transactionHash,
-        blockNumber: log.blockNumber,
-        timestamp: block?.timestamp || 0,
-        data: {
-          totalReward: ethers.formatUnits(log.args[1], 6),
-          withdrawable: ethers.formatUnits(log.args[2], 6),
-          vested: ethers.formatUnits(log.args[3], 6),
-        },
-      });
-    }
-
-    for (const ev of directBonusEvents) {
-      const log = ev as ethers.EventLog;
-      const block = await provider.getBlock(log.blockNumber);
-      history.push({
-        type: "DIRECT_BONUS",
-        txHash: log.transactionHash,
-        blockNumber: log.blockNumber,
-        timestamp: block?.timestamp || 0,
-        data: {
-          staker: log.args[1],
-          amount: ethers.formatUnits(log.args[2], 6),
-        },
-      });
-    }
-
-    for (const ev of matchingBonusEvents) {
-      const log = ev as ethers.EventLog;
-      const block = await provider.getBlock(log.blockNumber);
-      history.push({
-        type: "MATCHING_BONUS",
-        txHash: log.transactionHash,
-        blockNumber: log.blockNumber,
-        timestamp: block?.timestamp || 0,
-        data: {
-          source: log.args[1],
-          amount: ethers.formatUnits(log.args[2], 6),
-          level: Number(log.args[3]),
-        },
-      });
+      switch (type) {
+        case "STAKE":
+          history.push({
+            ...base,
+            data: {
+              amount: ethers.formatUnits(log.args[1], 6),
+              programType: Number(log.args[2]) === 0 ? "SHORT" : "LONG",
+              stakeIndex: Number(log.args[3]),
+            },
+          });
+          break;
+        case "UNSTAKE":
+          history.push({
+            ...base,
+            data: {
+              stakeIndex: Number(log.args[1]),
+              amount: ethers.formatUnits(log.args[2], 6),
+              penalty: ethers.formatUnits(log.args[3], 6),
+            },
+          });
+          break;
+        case "WITHDRAWAL":
+          history.push({
+            ...base,
+            data: { amount: ethers.formatUnits(log.args[1], 6) },
+          });
+          break;
+        case "VESTING_ADDED":
+          history.push({
+            ...base,
+            data: { amount: ethers.formatUnits(log.args[1], 6) },
+          });
+          break;
+        case "VESTING_RELEASED":
+          history.push({
+            ...base,
+            data: { amount: ethers.formatUnits(log.args[1], 6) },
+          });
+          break;
+        case "WEEKLY_SETTLEMENT":
+          history.push({
+            ...base,
+            data: {
+              totalReward: ethers.formatUnits(log.args[1], 6),
+              withdrawable: ethers.formatUnits(log.args[2], 6),
+              vested: ethers.formatUnits(log.args[3], 6),
+            },
+          });
+          break;
+        case "DIRECT_BONUS":
+          history.push({
+            ...base,
+            data: {
+              staker: log.args[1],
+              amount: ethers.formatUnits(log.args[2], 6),
+            },
+          });
+          break;
+        case "MATCHING_BONUS":
+          history.push({
+            ...base,
+            data: {
+              source: log.args[1],
+              amount: ethers.formatUnits(log.args[2], 6),
+              level: Number(log.args[3]),
+            },
+          });
+          break;
+      }
     }
 
     // Sort by block number descending (most recent first)

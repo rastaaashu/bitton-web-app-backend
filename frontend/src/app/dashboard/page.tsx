@@ -28,13 +28,50 @@ export default function DashboardPage() {
   const { data: stakesRaw, isLoading: stakesLoading } = useStakes();
   const [now, setNow] = useState(Math.floor(Date.now() / 1000));
 
-  useEffect(() => {
-    const interval = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
-    return () => clearInterval(interval);
-  }, []);
-
   const stakes = (stakesRaw as StakeInfo[] | undefined) || [];
   const activeStakes = stakes.filter((s) => s.active);
+
+  useEffect(() => {
+    // Only run countdown timer when there are active stakes with pending unlocks
+    const hasActiveCountdowns = activeStakes.some((s) => {
+      const config = PROGRAM_CONFIGS[s.programType as 0 | 1] || PROGRAM_CONFIGS[0];
+      const lockEnd = Number(s.startTime) + config.lockSeconds;
+      return lockEnd - Math.floor(Date.now() / 1000) > 0;
+    });
+
+    if (!hasActiveCountdowns) return;
+
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const startTimer = () => {
+      if (intervalId) return;
+      intervalId = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+    };
+
+    const stopTimer = () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.hidden) {
+        stopTimer();
+      } else {
+        setNow(Math.floor(Date.now() / 1000));
+        startTimer();
+      }
+    };
+
+    startTimer();
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      stopTimer();
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [activeStakes]);
 
   if (!isConnected) {
     return (

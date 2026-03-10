@@ -8,5 +8,10 @@ export default function Home() {
   useEffect(() => {
     router.replace("/login");
   }, [router]);
-  return null;
+
+  return (
+    <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+      <div className="w-8 h-8 border-2 border-gray-600 border-t-brand-400 rounded-full animate-spin" />
+    </div>
+  );
 }

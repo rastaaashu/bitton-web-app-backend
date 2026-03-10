@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Providers } from "./providers";
 import { LayoutShell } from "@/components/layout/LayoutShell";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 export const metadata: Metadata = {
   title: "BitTON.AI",
@@ -24,7 +25,9 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <Providers>
-          <LayoutShell>{children}</LayoutShell>
+          <ErrorBoundary>
+            <LayoutShell>{children}</LayoutShell>
+          </ErrorBoundary>
         </Providers>
       </body>
     </html>

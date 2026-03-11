@@ -163,3 +163,4 @@ export async function sendSponsorNotification(
     `<p><strong>${newUserEmail}</strong> registered with your sponsor code.</p><p><a href="${confirmUrl}">Confirm referral</a></p>`
   );
 }
+

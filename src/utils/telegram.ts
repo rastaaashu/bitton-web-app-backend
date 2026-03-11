@@ -55,3 +55,4 @@ export function verifyTelegramAuth(data: TelegramLoginData): boolean {
 
   return true;
 }
+

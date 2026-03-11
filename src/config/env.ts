@@ -62,3 +62,4 @@ export const env = {
   // App
   appUrl: optional("APP_URL", "http://localhost:3000"),
 };
+

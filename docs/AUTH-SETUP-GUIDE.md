@@ -177,3 +177,4 @@ Run `npx prisma db push` to apply changes.
 - Wallet challenges expire after 5 minutes
 - In-memory nonce store (use Redis for production multi-instance deployments)
 - Passwords are NOT used in the new flow (legacy support only)
+

@@ -44,3 +44,4 @@ export function signRefreshToken(payload: JwtPayload): string {
   const opts: SignOptions = { expiresIn: env.jwtRefreshExpiry as any, algorithm: 'HS256' };
   return jwt.sign(payload as object, env.authSecret, opts);
 }
+

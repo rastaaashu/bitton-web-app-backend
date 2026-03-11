@@ -169,3 +169,4 @@ export const linkWalletSchema = z.object({
   signature: z.string().min(1, "Signature is required"),
   message: z.string().min(1, "Message is required"),
 });
+

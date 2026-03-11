@@ -365,3 +365,4 @@ export function validateSnapshot(
 
   return { valid: errors.length === 0, errors };
 }
+

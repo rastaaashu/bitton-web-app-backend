@@ -44,3 +44,4 @@ export const balanceCache = new SimpleCache<string>();
 export const contractStateCache = new SimpleCache<any>();
 
 export { SimpleCache };
+

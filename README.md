@@ -149,3 +149,4 @@ Background job runner polls for pending jobs and executes on-chain:
 ## Environment Variables
 
 See `.env.example` in the project root for all required variables.
+

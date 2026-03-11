@@ -239,3 +239,4 @@ export function normalizeTonAddress(address: string): string {
   // The frontend should send raw format.
   return address.toLowerCase();
 }
+

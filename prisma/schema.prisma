@@ -243,3 +243,4 @@ model AuditLog {
   @@index([action, createdAt])
   @@map("audit_log")
 }
+

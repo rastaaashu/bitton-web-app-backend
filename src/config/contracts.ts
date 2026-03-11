@@ -167,3 +167,4 @@ export function getBonusEngineContract(signerOrProvider?: ethers.Signer | ethers
     signerOrProvider || getProvider()
   );
 }
+

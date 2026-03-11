@@ -1,0 +1,56 @@
+graph TB
+    You["YOU<br/>━━━━━━━━━━<br/>Active Vault (T3)<br/>500+ BTN Staked<br/>= QUALIFIED"]
+
+    subgraph Level1["Level 1 — 10% Matching"]
+        R1A["Referral A<br/>Stakes 1000 BTN"]
+        R1B["Referral B<br/>Stakes 500 BTN"]
+    end
+
+    subgraph Level2["Level 2 — 5% Matching"]
+        R2A["A's Referral<br/>Stakes 800 BTN"]
+        R2B["B's Referral<br/>Stakes 600 BTN"]
+    end
+
+    subgraph Level3["Level 3 — 3% Matching"]
+        R3A["Deeper Referral<br/>Stakes 1000 BTN"]
+    end
+
+    subgraph Level4to10["Levels 4-10 — 1% Each (T3 Only)"]
+        R4["Level 4 Referral"]
+        R5["..."]
+        R10["Level 10 Referral"]
+    end
+
+    You -->|"Direct Bonus<br/>5% of stake"| R1A
+    You -->|"Direct Bonus<br/>5% of stake"| R1B
+
+    R1A --> R2A
+    R1B --> R2B
+    R2A --> R3A
+    R3A --> R4
+    R4 --> R5
+    R5 --> R10
+
+    subgraph YourEarnings["YOUR EARNINGS FROM THIS TREE"]
+        E1["Direct Bonus: 5% of 1000 + 5% of 500 = 75 BTN"]
+        E2["Matching L1: 10% of A's rewards + 10% of B's rewards"]
+        E3["Matching L2: 5% of sub-referral rewards"]
+        E4["Matching L3: 3% of deep referral rewards"]
+        E5["Matching L4-10: 1% each (T3 required)"]
+    end
+
+    subgraph Qualification["QUALIFICATION RULES"]
+        Q1["Active Vault Required"]
+        Q2["Min 500 BTN Personal Stake"]
+        Q3["T1: Max 3 levels"]
+        Q4["T2: Max 5 levels"]
+        Q5["T3: Max 10 levels"]
+    end
+
+    style You fill:#3b82f6,stroke:#60a5fa,color:#fff
+    style Level1 fill:#166534,stroke:#22c55e,color:#fff
+    style Level2 fill:#854d0e,stroke:#f59e0b,color:#fff
+    style Level3 fill:#4a1d6a,stroke:#a855f7,color:#fff
+    style Level4to10 fill:#1e293b,stroke:#94a3b8,color:#fff
+    style YourEarnings fill:#166534,stroke:#22c55e,color:#fff
+    style Qualification fill:#78350f,stroke:#f59e0b,color:#fff

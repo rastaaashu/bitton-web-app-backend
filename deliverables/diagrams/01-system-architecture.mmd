@@ -1,0 +1,66 @@
+graph TB
+    subgraph Users["Users"]
+        Browser["Browser / Mobile Wallet"]
+    end
+
+    subgraph Frontend["Frontend (Vercel)"]
+        NextJS["Next.js 14 + React + Tailwind"]
+        RainbowKit["RainbowKit + Wagmi"]
+        ReactQuery["TanStack React Query"]
+    end
+
+    subgraph Backend["Backend API (Render)"]
+        Express["Express.js + TypeScript"]
+        Prisma["Prisma ORM"]
+        Ethers["ethers.js v6"]
+        Operator["Operator Job Runner"]
+        AuthService["Auth Service<br/>(JWT + Wallet Sig)"]
+        EmailService["Email Service<br/>(Resend / SMTP)"]
+    end
+
+    subgraph Database["PostgreSQL (Neon)"]
+        DB[("Users, Sessions,<br/>Jobs, Audit Log,<br/>Migration Claims")]
+    end
+
+    subgraph Blockchain["Base Sepolia (Chain ID: 84532)"]
+        subgraph CoreContracts["Core Contracts (UUPS Proxy)"]
+            VM["VaultManager<br/>Tier Activation"]
+            SV["StakingVault<br/>Short & Long Stakes"]
+            RE["RewardEngine<br/>Weekly Settlement"]
+            VP["VestingPool<br/>0.5%/day Release"]
+            WW["WithdrawalWallet<br/>User Withdrawals"]
+            BE["BonusEngine<br/>Referral Bonuses"]
+        end
+        subgraph Tokens["Tokens & Oracles"]
+            BTN["BTN Token<br/>(ERC20, 6 decimals)"]
+            USDT["USDT Token<br/>(ERC20, 6 decimals)"]
+            Oracle["Price Oracle<br/>(Chainlink Mock)"]
+            Treasury["Treasury<br/>Fees & Penalties"]
+        end
+    end
+
+    Browser -->|"HTTPS"| NextJS
+    NextJS --> RainbowKit
+    NextJS --> ReactQuery
+    RainbowKit -->|"Direct RPC<br/>(read/write txs)"| CoreContracts
+    NextJS -->|"REST API"| Express
+    Express --> AuthService
+    Express --> EmailService
+    Express --> Prisma
+    Prisma --> DB
+    Express --> Ethers
+    Ethers -->|"Read state"| CoreContracts
+    Operator -->|"Write txs<br/>(relayer signer)"| CoreContracts
+
+    VM --> Oracle
+    VM --> Treasury
+    SV --> BTN
+    RE --> BTN
+
+    style Frontend fill:#1e3a5f,stroke:#4a9eff,color:#fff
+    style Backend fill:#2d1b4e,stroke:#a855f7,color:#fff
+    style Database fill:#1a3c2a,stroke:#22c55e,color:#fff
+    style Blockchain fill:#3d2800,stroke:#f59e0b,color:#fff
+    style CoreContracts fill:#4a3000,stroke:#fbbf24,color:#fff
+    style Tokens fill:#3d2800,stroke:#f59e0b,color:#fff
+    style Users fill:#1e293b,stroke:#94a3b8,color:#fff

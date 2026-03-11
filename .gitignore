@@ -4,5 +4,5 @@ cache/
 coverage/
 typechain-types/
 .env
-deliverables/
 deliverables.zip
+deliverables/**/bitton-*.zip

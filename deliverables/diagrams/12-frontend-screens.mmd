@@ -1,0 +1,49 @@
+graph TB
+    subgraph PublicPages["Public Pages"]
+        Login["LOGIN<br/>━━━━━━━━<br/>3 Auth Methods:<br/>- EVM Wallet (sign challenge)<br/>- Email (OTP + wallet)<br/>- Telegram (OAuth + wallet)<br/>+ Risk Disclaimer"]
+        Register["REGISTER<br/>━━━━━━━━<br/>Referral Code Required<br/>+ Same 3 auth methods<br/>+ Risk Disclaimer"]
+    end
+
+    subgraph MainPages["Authenticated Pages"]
+        Dashboard["DASHBOARD<br/>━━━━━━━━━━━━<br/>4 Stat Cards:<br/>- Wallet Balance<br/>- Total Staked<br/>- Vesting Locked<br/>- Withdrawable<br/>+ Vault Tier Badge<br/>+ Active Stakes Table<br/>+ Pending Rewards"]
+
+        Vault["VAULT<br/>━━━━━━━━━━━━<br/>3 Tier Cards:<br/>T1 ($25) / T2 ($50) / T3 ($100)<br/>+ Payment: USDT or BTN<br/>+ Oracle BTN conversion<br/>+ Approve → Activate flow"]
+
+        Staking["STAKING<br/>━━━━━━━━━━━━<br/>Toggle: Short (30d) / Long (180d)<br/>+ Amount input + MAX<br/>+ Reward estimate<br/>+ Program comparison<br/>+ Active Stakes Table<br/>+ Unstake Modal<br/>  (15% penalty warning)"]
+
+        Rewards["REWARDS<br/>━━━━━━━━━━━━<br/>3 Stats: Pending / Last / Pool<br/>+ Settlement Preview<br/>  10% → Withdrawal<br/>  90% → Vesting<br/>+ Settle Button"]
+
+        Vesting["VESTING<br/>━━━━━━━━━━━━<br/>Vested Balance (locked)<br/>+ Live Release Counter<br/>  (updates every second)<br/>+ Progress Bar<br/>+ Release Button<br/>+ Daily/Second Rate"]
+
+        Withdraw["WITHDRAW<br/>━━━━━━━━━━━━<br/>Withdrawable Balance<br/>+ Amount Input + MAX<br/>+ Withdraw Button<br/>→ BTN to wallet"]
+
+        Referrals["REFERRALS<br/>━━━━━━━━━━━━<br/>Referral Link + Copy<br/>+ Custom Short Name (NEW)<br/>+ 4 Stats: Downline /<br/>  Depth / Qualified / Staked<br/>+ Matching Levels Table<br/>+ Downline Address List"]
+
+        History["HISTORY<br/>━━━━━━━━━━━━<br/>Transaction Table:<br/>Type / Amount / Date / Tx<br/>+ BaseScan links"]
+
+        Settings["SETTINGS<br/>━━━━━━━━━━━━<br/>Account Info Card<br/>+ Linked Auth Methods<br/>  (Wallet / Email / Telegram)<br/>+ Link Email Modal<br/>+ Link Telegram Modal<br/>+ Sponsor Codes<br/>+ Sign Out"]
+    end
+
+    subgraph AdminPage["Admin Page (Role-gated)"]
+        Admin["ADMIN<br/>━━━━━━━━━━━━<br/>System Stats:<br/>Global Staked / Pool / Admin<br/>+ Fund Reward Pool<br/>  (Approve → Fund)<br/>+ User Lookup by Address<br/>+ Contract Addresses (hidden)"]
+    end
+
+    Login -->|"Success"| Dashboard
+    Register -->|"Success"| Dashboard
+    Dashboard --> Vault
+    Dashboard --> Staking
+    Staking --> Rewards
+    Rewards --> Vesting
+    Vesting --> Withdraw
+
+    style PublicPages fill:#1e293b,stroke:#94a3b8,color:#fff
+    style MainPages fill:#1e3a5f,stroke:#3b82f6,color:#fff
+    style AdminPage fill:#991b1b,stroke:#ef4444,color:#fff
+    style Dashboard fill:#1e40af,stroke:#60a5fa,color:#fff
+    style Vault fill:#78350f,stroke:#f59e0b,color:#fff
+    style Staking fill:#4a1d6a,stroke:#a855f7,color:#fff
+    style Rewards fill:#6b21a8,stroke:#c084fc,color:#fff
+    style Vesting fill:#854d0e,stroke:#fbbf24,color:#fff
+    style Withdraw fill:#166534,stroke:#22c55e,color:#fff
+    style Referrals fill:#1e3a5f,stroke:#3b82f6,color:#fff
+    style Admin fill:#7f1d1d,stroke:#ef4444,color:#fff

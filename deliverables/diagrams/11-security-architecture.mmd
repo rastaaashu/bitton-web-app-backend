@@ -1,0 +1,45 @@
+graph TB
+    subgraph SmartContract["Smart Contract Security"]
+        SC1["UUPS Proxy Pattern<br/>Admin-only upgrades"]
+        SC2["ReentrancyGuard<br/>On all withdrawals"]
+        SC3["SafeERC20<br/>All token transfers"]
+        SC4["AccessControl Roles<br/>ADMIN / OPERATOR / EMERGENCY"]
+        SC5["Pausable<br/>Emergency shutdown"]
+        SC6["Oracle Validation<br/>Staleness < 1hr, Price > 0"]
+        SC7["Checks-Effects-Interactions<br/>State before calls"]
+        SC8["Storage Gap (50 slots)<br/>Future upgrade safety"]
+        SC9["Solidity 0.8.27<br/>Overflow protection"]
+    end
+
+    subgraph Backend["Backend API Security"]
+        BE1["Helmet Middleware<br/>CSP, HSTS, X-Frame, X-Content"]
+        BE2["CORS Whitelist<br/>Only allowed origins"]
+        BE3["Rate Limiting<br/>Global: 100/min<br/>Auth: 20/15min<br/>OTP: 5/15min"]
+        BE4["JWT Auth (HS256)<br/>15min access + 7d refresh"]
+        BE5["Wallet Signature Verify<br/>ethers.verifyMessage()"]
+        BE6["Telegram HMAC-SHA256<br/>Bot token verification"]
+        BE7["Timing-Safe Comparison<br/>OTP + API Key checks"]
+        BE8["Session Revocation<br/>Logout invalidates tokens"]
+        BE9["Audit Logging<br/>All state changes tracked"]
+        BE10["Body Size Limit: 1MB<br/>Request ID Tracing"]
+    end
+
+    subgraph Frontend["Frontend Security"]
+        FE1["No secrets in client<br/>Only public env vars"]
+        FE2["Protected Routes<br/>JWT check on navigation"]
+        FE3["Wallet Signature<br/>User approves every tx"]
+        FE4["Input Validation<br/>Amount limits, formats"]
+        FE5["Wrong Network Detection<br/>Chain ID verification"]
+    end
+
+    subgraph AccessRoles["Access Control Matrix"]
+        R1["DEFAULT_ADMIN_ROLE<br/>━━━━━━━━━━<br/>Contract upgrades<br/>Set addresses<br/>Emergency actions"]
+        R2["OPERATOR_ROLE<br/>━━━━━━━━━━<br/>Weekly settlement<br/>Bonus processing<br/>Fund contracts"]
+        R3["EMERGENCY_ROLE<br/>━━━━━━━━━━<br/>Pause contracts<br/>Unpause contracts"]
+        R4["ADMIN_API_KEY<br/>━━━━━━━━━━<br/>Backend admin routes<br/>Migration management<br/>User management"]
+    end
+
+    style SmartContract fill:#1e3a5f,stroke:#3b82f6,color:#fff
+    style Backend fill:#4a1d6a,stroke:#a855f7,color:#fff
+    style Frontend fill:#166534,stroke:#22c55e,color:#fff
+    style AccessRoles fill:#78350f,stroke:#f59e0b,color:#fff

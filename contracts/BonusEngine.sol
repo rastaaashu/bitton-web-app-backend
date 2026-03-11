@@ -252,14 +252,17 @@ contract BonusEngine is
     // ─── Admin ───────────────────────────────────────────────
 
     function setRewardEngine(address _rewardEngine) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_rewardEngine != address(0), "BonusEngine: zero address");
         rewardEngine = _rewardEngine;
     }
 
     function setVaultManager(address _vaultManager) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_vaultManager != address(0), "BonusEngine: zero address");
         vaultManager = _vaultManager;
     }
 
     function setStakingVault(address _stakingVault) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(_stakingVault != address(0), "BonusEngine: zero address");
         stakingVault = _stakingVault;
     }
 

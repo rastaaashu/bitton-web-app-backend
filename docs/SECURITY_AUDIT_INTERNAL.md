@@ -196,9 +196,9 @@
 
 | Component | Rating | Notes |
 |-----------|--------|-------|
-| Smart Contracts | A | 618 tests, 56 security tests, 95%+ coverage |
-| Backend | A- | Full auth hardening, needs Redis + KMS for mainnet |
-| Frontend | B+ | Good practices, needs CSP headers + E2E tests |
+| Smart Contracts | A | 619 tests, 56 security tests, 95%+ coverage, zero-address guards |
+| Backend | A | Full auth hardening, timing-safe OTP, no user enumeration leaks |
+| Frontend | A- | CSP headers, production error masking, needs E2E tests |
 | Migration | A | Cryptographic verification, anti-fraud measures |
 | Infrastructure | C | Free tier, no monitoring — needs upgrade for mainnet |
 
@@ -208,6 +208,20 @@
 3. **KMS for relayer key** — HIGH (don't store in env vars)
 4. **Monitoring (Sentry)** — HIGH (error detection)
 5. **Always-on backend** — HIGH (user experience)
+
+---
+
+## 6. POST-AUDIT FIXES (March 11, 2026)
+
+| Finding | Severity | Fix Applied |
+|---------|----------|-------------|
+| OTP timing attack (string `!==` comparison) | HIGH | Replaced with `crypto.timingSafeEqual` in both OTP verification paths |
+| User enumeration via `isNewUser` field | MEDIUM | Removed from all auth responses, replaced with `authenticated: true` |
+| BonusEngine setters accept zero address | MEDIUM | Added `require(_addr != address(0))` to `setRewardEngine`, `setVaultManager`, `setStakingVault` |
+| Error boundary leaks raw error messages | LOW | Gated `error.message` display behind `NODE_ENV === "development"` |
+| Frontend missing CSP headers | MEDIUM | Added comprehensive CSP, X-Frame-Options, X-XSS-Protection, Referrer-Policy, Permissions-Policy to `next.config.js` |
+
+**All fixes verified:** 619/619 contract tests pass, backend TypeScript clean, frontend builds clean (15 pages).
 
 ---
 

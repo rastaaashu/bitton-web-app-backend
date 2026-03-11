@@ -54,7 +54,7 @@ export class ErrorBoundary extends React.Component<
             <p className="text-gray-400 mb-6 text-sm">
               An unexpected error occurred. Please try again.
             </p>
-            {this.state.error && (
+            {this.state.error && process.env.NODE_ENV === "development" && (
               <p className="text-gray-500 text-xs mb-6 font-mono break-all">
                 {this.state.error.message}
               </p>

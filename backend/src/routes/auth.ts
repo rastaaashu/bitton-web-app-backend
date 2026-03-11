@@ -352,7 +352,10 @@ router.post("/verify-otp", authLimiter, async (req: Request, res: Response) => {
       return;
     }
 
-    if (latestOtp.code !== otp) {
+    // Timing-safe OTP comparison to prevent side-channel attacks
+    const otpMatch = latestOtp.code.length === otp.length &&
+      crypto.timingSafeEqual(Buffer.from(latestOtp.code), Buffer.from(otp));
+    if (!otpMatch) {
       await prisma.otpCode.update({
         where: { id: latestOtp.id },
         data: { attempts: { increment: 1 } },
@@ -1065,7 +1068,7 @@ router.post("/wallet/complete", authLimiter, async (req: Request, res: Response)
       await prisma.auditLog.create({
         data: { actor: normalizedAddr, action: "auth.unified.wallet.login", target: existingUser.id },
       });
-      res.json({ ...tokens, user: userResponse(existingUser), isNewUser: false });
+      res.json({ ...tokens, user: userResponse(existingUser), authenticated: true });
     } else {
       // ── REGISTER ──
       if (!sponsorCode) {
@@ -1105,7 +1108,7 @@ router.post("/wallet/complete", authLimiter, async (req: Request, res: Response)
         data: { actor: normalizedAddr, action: "auth.unified.wallet.register", target: user.id },
       });
 
-      res.status(201).json({ ...tokens, user: userResponse(user), isNewUser: true });
+      res.status(201).json({ ...tokens, user: userResponse(user), authenticated: true });
     }
   } catch (err: any) {
     logger.error("Unified wallet complete error:", err);
@@ -1158,7 +1161,7 @@ router.post("/email/init", otpLimiter, async (req: Request, res: Response) => {
 
     res.json({
       sessionId: session.id,
-      isNewUser: !existingUser,
+      authenticated: true,
       message: "Verification code sent to your email",
     });
   } catch (err: any) {
@@ -1224,7 +1227,7 @@ router.post("/email/complete", authLimiter, async (req: Request, res: Response) 
         data: { actor: session.email!, action: "auth.unified.email.login", target: user.id },
       });
 
-      res.json({ ...tokens, user: userResponse(user), isNewUser: false });
+      res.json({ ...tokens, user: userResponse(user), authenticated: true });
     } else {
       // ── REGISTER ──
       if (!sponsorCode) {
@@ -1279,7 +1282,7 @@ router.post("/email/complete", authLimiter, async (req: Request, res: Response) 
         data: { actor: session.email!, action: "auth.unified.email.register", target: user.id },
       });
 
-      res.status(201).json({ ...tokens, user: userResponse(user), isNewUser: true });
+      res.status(201).json({ ...tokens, user: userResponse(user), authenticated: true });
     }
   } catch (err: any) {
     logger.error("Unified email complete error:", err);
@@ -1326,7 +1329,7 @@ router.post("/telegram/init", authLimiter, async (req: Request, res: Response) =
 
     res.json({
       sessionId: session.id,
-      isNewUser: !existingUser,
+      authenticated: true,
       telegramUser: {
         id: telegramData.id,
         firstName: telegramData.first_name,
@@ -1397,7 +1400,7 @@ router.post("/telegram/complete", authLimiter, async (req: Request, res: Respons
         data: { actor: `tg:${session.telegramId}`, action: "auth.unified.telegram.login", target: user.id },
       });
 
-      res.json({ ...tokens, user: userResponse(user), isNewUser: false });
+      res.json({ ...tokens, user: userResponse(user), authenticated: true });
     } else {
       // ── REGISTER ──
       if (!sponsorCode) {
@@ -1451,7 +1454,7 @@ router.post("/telegram/complete", authLimiter, async (req: Request, res: Respons
         data: { actor: `tg:${session.telegramId}`, action: "auth.unified.telegram.register", target: user.id },
       });
 
-      res.status(201).json({ ...tokens, user: userResponse(user), isNewUser: true });
+      res.status(201).json({ ...tokens, user: userResponse(user), authenticated: true });
     }
   } catch (err: any) {
     logger.error("Unified telegram complete error:", err);
@@ -1584,7 +1587,10 @@ router.post("/profile/link-email/verify", jwtAuth, authLimiter, async (req: Requ
       res.status(429).json({ error: "Too many failed attempts. Request a new OTP." });
       return;
     }
-    if (latestOtp.code !== otp) {
+    // Timing-safe OTP comparison to prevent side-channel attacks
+    const otpMatch2 = latestOtp.code.length === otp.length &&
+      crypto.timingSafeEqual(Buffer.from(latestOtp.code), Buffer.from(otp));
+    if (!otpMatch2) {
       await prisma.otpCode.update({ where: { id: latestOtp.id }, data: { attempts: { increment: 1 } } });
       res.status(400).json({ error: "Invalid verification code" });
       return;

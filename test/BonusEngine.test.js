@@ -285,11 +285,10 @@ describe("BonusEngine", function () {
       ).to.be.reverted;
     });
 
-    it("should revert if rewardEngine not set", async function () {
-      await bonusEngine.connect(admin).setRewardEngine(ZERO_ADDRESS);
+    it("should revert if trying to set rewardEngine to zero (direct bonus context)", async function () {
       await expect(
-        bonusEngine.connect(operator).processDirectBonus(user1.address, BTN(100))
-      ).to.be.revertedWithCustomError(bonusEngine, "RewardEngineNotSet");
+        bonusEngine.connect(admin).setRewardEngine(ZERO_ADDRESS)
+      ).to.be.revertedWith("BonusEngine: zero address");
     });
 
     it("should accumulate across multiple stakes", async function () {
@@ -440,11 +439,10 @@ describe("BonusEngine", function () {
       ).to.be.reverted;
     });
 
-    it("should revert if rewardEngine not set", async function () {
-      await bonusEngine.connect(admin).setRewardEngine(ZERO_ADDRESS);
+    it("should revert if trying to set rewardEngine to zero address", async function () {
       await expect(
-        bonusEngine.connect(operator).processMatchingBonus(user1.address, BTN(100))
-      ).to.be.revertedWithCustomError(bonusEngine, "RewardEngineNotSet");
+        bonusEngine.connect(admin).setRewardEngine(ZERO_ADDRESS)
+      ).to.be.revertedWith("BonusEngine: zero address");
     });
 
     it("should handle zero reward amount (no bonus distributed)", async function () {
@@ -508,17 +506,22 @@ describe("BonusEngine", function () {
       expect(await bonusEngine.isQualified(user1.address, 1)).to.be.true;
     });
 
-    it("should return true when vaultManager is zero (permissive)", async function () {
-      await bonusEngine.connect(admin).setVaultManager(ZERO_ADDRESS);
-      await mockStakingVault.setUserTotalStaked(user1.address, MIN_PERSONAL_STAKE);
-      expect(await bonusEngine.isQualified(user1.address, 10)).to.be.true;
+    it("should revert when setting vaultManager to zero address", async function () {
+      await expect(
+        bonusEngine.connect(admin).setVaultManager(ZERO_ADDRESS)
+      ).to.be.revertedWith("BonusEngine: zero address");
     });
 
-    it("should return true when stakingVault is zero (permissive)", async function () {
-      await bonusEngine.connect(admin).setStakingVault(ZERO_ADDRESS);
-      await mockVaultManager.setVaultActive(user1.address, true);
-      await mockVaultManager.setUserTier(user1.address, 3);
-      expect(await bonusEngine.isQualified(user1.address, 5)).to.be.true;
+    it("should revert when setting stakingVault to zero address", async function () {
+      await expect(
+        bonusEngine.connect(admin).setStakingVault(ZERO_ADDRESS)
+      ).to.be.revertedWith("BonusEngine: zero address");
+    });
+
+    it("should revert when setting rewardEngine to zero address", async function () {
+      await expect(
+        bonusEngine.connect(admin).setRewardEngine(ZERO_ADDRESS)
+      ).to.be.revertedWith("BonusEngine: zero address");
     });
   });
 

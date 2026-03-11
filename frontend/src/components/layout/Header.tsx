@@ -54,17 +54,19 @@ export function Header() {
               )}
               <button
                 onClick={handleLogout}
-                className="text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 px-2 sm:px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                className="text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 px-2 sm:px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap touch-manipulation"
               >
                 Logout
               </button>
             </div>
           )}
-          <ConnectButton
-            showBalance={false}
-            chainStatus="icon"
-            accountStatus={{ smallScreen: "avatar", largeScreen: "address" }}
-          />
+          <div className="[&_button]:touch-manipulation [&_button]:!min-h-[40px]">
+            <ConnectButton
+              showBalance={false}
+              chainStatus="icon"
+              accountStatus={{ smallScreen: "avatar", largeScreen: "address" }}
+            />
+          </div>
         </div>
       </div>
     </header>

@@ -33,7 +33,7 @@ export function Sidebar() {
     <>
       {/* Mobile hamburger */}
       <button
-        className="lg:hidden fixed top-4 left-4 z-50 bg-gray-800 p-2 rounded-lg"
+        className="lg:hidden fixed top-4 left-4 z-[100] bg-gray-800 p-2.5 rounded-lg touch-manipulation"
         onClick={() => setOpen(!open)}
         aria-label="Toggle menu"
       >
@@ -49,7 +49,7 @@ export function Sidebar() {
       {/* Mobile backdrop */}
       {open && (
         <div
-          className="lg:hidden fixed inset-0 bg-black/50 z-30"
+          className="lg:hidden fixed inset-0 bg-black/50 z-[90]"
           onClick={() => setOpen(false)}
         />
       )}
@@ -57,7 +57,7 @@ export function Sidebar() {
       <aside
         className={clsx(
           "bg-gray-900 border-r border-gray-800 flex flex-col transition-transform duration-200",
-          "fixed lg:relative z-40 h-full",
+          "fixed lg:relative z-[95] h-full",
           open ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           "w-64"
         )}

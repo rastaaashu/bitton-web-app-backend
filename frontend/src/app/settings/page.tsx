@@ -300,7 +300,7 @@ function LinkEmailButton({ onSuccess }: { onSuccess: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
       <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-sm w-full">
         <h4 className="text-lg font-bold mb-4">Link Email Address</h4>
 
@@ -463,7 +463,7 @@ function LinkTelegramButton({ onSuccess }: { onSuccess: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/60 z-[9999] flex items-center justify-center p-4">
       <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-sm w-full">
         <h4 className="text-lg font-bold mb-4">Link Telegram Account</h4>
 

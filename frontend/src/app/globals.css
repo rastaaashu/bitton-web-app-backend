@@ -18,4 +18,34 @@ body {
   color: var(--foreground);
   background: var(--background);
   font-family: system-ui, -apple-system, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Ensure RainbowKit modal renders above sidebar and all other overlays */
+[data-rk] [role="dialog"] {
+  z-index: 99999 !important;
+}
+[data-rk] [aria-hidden="true"] {
+  z-index: 99998 !important;
+}
+
+/* Mobile touch targets — minimum 44x44px per WCAG */
+@media (max-width: 768px) {
+  button, a, [role="button"] {
+    min-height: 44px;
+  }
+
+  /* Make ConnectButton full width on mobile for easier tapping */
+  [data-rk] button {
+    min-height: 44px;
+    font-size: 14px;
+  }
+}
+
+/* Safe area insets for notched phones (iPhone X+) */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .min-h-screen {
+    min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }

@@ -20,28 +20,42 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
   useEffect(() => {
     if (open) {
       document.addEventListener("keydown", handleKeyDown);
+      // Prevent background scroll on mobile without breaking modals
+      const scrollY = window.scrollY;
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.left = "0";
+      document.body.style.right = "0";
       document.body.style.overflow = "hidden";
+      return () => {
+        document.removeEventListener("keydown", handleKeyDown);
+        document.body.style.position = "";
+        document.body.style.top = "";
+        document.body.style.left = "";
+        document.body.style.right = "";
+        document.body.style.overflow = "";
+        window.scrollTo(0, scrollY);
+      };
     }
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
     };
   }, [open, handleKeyDown]);
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+      <div className="relative bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-md w-full shadow-2xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-white">{title}</h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="text-gray-400 hover:text-white transition-colors touch-manipulation"
           >
             <svg
               className="w-5 h-5"

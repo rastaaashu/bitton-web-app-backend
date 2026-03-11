@@ -303,7 +303,7 @@ function WalletRegister({
         Connect your EVM wallet to create an account. No email or Telegram needed.
       </p>
 
-      <div className="flex justify-center">
+      <div className="flex justify-center [&>div]:w-full [&_button]:w-full [&_button]:!min-h-[48px] sm:[&>div]:w-auto sm:[&_button]:w-auto">
         <ConnectButton />
       </div>
 
@@ -550,7 +550,7 @@ function EmailRegister({
         <div className="space-y-4">
           <p className="text-sm text-green-400">Email verified! Now connect your wallet.</p>
           <InAppBrowserBanner />
-          <div className="flex justify-center">
+          <div className="flex justify-center [&>div]:w-full [&_button]:w-full [&_button]:!min-h-[48px] sm:[&>div]:w-auto sm:[&_button]:w-auto">
             <ConnectButton />
           </div>
           {isConnected && (
@@ -726,7 +726,7 @@ function TelegramRegister({
             ! Now connect your wallet.
           </p>
           <InAppBrowserBanner />
-          <div className="flex justify-center">
+          <div className="flex justify-center [&>div]:w-full [&_button]:w-full [&_button]:!min-h-[48px] sm:[&>div]:w-auto sm:[&_button]:w-auto">
             <ConnectButton />
           </div>
           {isConnected && (

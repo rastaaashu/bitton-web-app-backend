@@ -1,6 +1,8 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import { randomUUID } from "crypto";
 import { env } from "./config/env";
 import { logger } from "./utils/logger";
 import { prisma } from "./utils/prisma";
@@ -18,9 +20,63 @@ import contractsRouter from "./routes/contracts";
 const app = express();
 
 // Middleware
-app.use(helmet());
-app.use(cors());
-app.use(express.json({ limit: "10mb" }));
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    },
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  })
+);
+
+// CORS: production only allows APP_URL; development also allows localhost
+const corsOrigins: string[] = [env.appUrl].filter(Boolean);
+if (env.nodeEnv !== "production") {
+  corsOrigins.push(
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:3002",
+    "http://localhost:3003"
+  );
+}
+app.use(cors({ origin: corsOrigins, credentials: true }));
+
+// Limit JSON body size to prevent DoS via large payloads
+app.use(express.json({ limit: "1mb" }));
+
+// Disable X-Powered-By header (already handled by helmet but explicit)
+app.disable("x-powered-by");
+
+// Global rate limiter: 100 requests per minute per IP
+app.use(
+  rateLimit({
+    windowMs: 60 * 1000,
+    max: 100,
+    message: { error: "Rate limit exceeded. Please slow down." },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) => req.path === "/health", // Don't rate limit health checks
+  })
+);
+
+// Request ID for tracing
+app.use((req, res, next) => {
+  (req as any).requestId = req.headers["x-request-id"] || randomUUID();
+  res.setHeader("X-Request-ID", (req as any).requestId);
+  next();
+});
 
 // Routes
 app.use("/", healthRouter);
@@ -33,20 +89,78 @@ app.use("/api", contractsRouter);
 
 // Error handler
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  logger.error("Unhandled error:", err);
+  logger.error("Unhandled express error:", err);
   res.status(500).json({ error: "Internal server error" });
 });
 
+// Global error handlers — prevent silent crashes
+process.on("unhandledRejection", (reason, promise) => {
+  logger.error("Unhandled promise rejection:", { reason, promise: String(promise) });
+});
+
+process.on("uncaughtException", (err) => {
+  logger.error("Uncaught exception — shutting down:", err);
+  process.exit(1);
+});
+
+// Cleanup expired auth data periodically
+async function cleanupExpiredAuthData() {
+  try {
+    const now = new Date();
+    const [sessions, otps, challenges] = await prisma.$transaction([
+      prisma.pendingSession.deleteMany({ where: { expiresAt: { lt: now } } }),
+      prisma.otpCode.deleteMany({ where: { expiresAt: { lt: now } } }),
+      prisma.walletChallenge.deleteMany({ where: { expiresAt: { lt: now } } }),
+    ]);
+    if (sessions.count + otps.count + challenges.count > 0) {
+      logger.info(`Cleanup: removed ${sessions.count} sessions, ${otps.count} OTPs, ${challenges.count} challenges`);
+    }
+  } catch (err: any) {
+    logger.warn(`Cleanup error: ${err.message}`);
+  }
+}
+
+// Startup validation
+function validateStartupConfig() {
+  const critical: string[] = [];
+  if (!env.authSecret || env.authSecret === "dev-secret") {
+    if (env.nodeEnv === "production") critical.push("AUTH_SECRET must be set in production");
+  }
+  if (!env.appUrl || env.appUrl === "http://localhost:3000") {
+    if (env.nodeEnv === "production") critical.push("APP_URL must be set to frontend URL in production");
+  }
+  if (critical.length > 0) {
+    logger.error("STARTUP VALIDATION FAILED:");
+    critical.forEach((msg) => logger.error(`  - ${msg}`));
+    // Log warnings but don't crash — allow deployment to proceed for configuration in dashboard
+  }
+
+  // Informational warnings
+  if (!env.emailApiKey && !env.smtpHost) {
+    logger.warn("No email provider configured (EMAIL_API_KEY or SMTP_HOST). Email OTPs will only log to console.");
+  }
+  if (!env.telegramBotToken || !env.telegramBotUsername) {
+    logger.warn("Telegram not configured (TELEGRAM_BOT_TOKEN / TELEGRAM_BOT_USERNAME). Telegram auth disabled.");
+  }
+}
+
 // Start
 async function main() {
+  validateStartupConfig();
+
   // Connect to DB
   await prisma.$connect();
   logger.info("Database connected");
 
+  // Initial cleanup + schedule every 30 min
+  await cleanupExpiredAuthData();
+  setInterval(cleanupExpiredAuthData, 30 * 60 * 1000);
+
   // Start HTTP server
   const server = app.listen(env.port, () => {
     logger.info(`BitTON.AI backend running on port ${env.port} (${env.nodeEnv})`);
-    logger.info(`Health check: http://localhost:${env.port}/health`);
+    logger.info(`CORS origin: ${corsOrigins.join(", ")}`);
+    logger.info(`Health check: /health`);
   });
 
   // Start operator job runner (background)

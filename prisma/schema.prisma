@@ -3,19 +3,13 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-// ── Auth Method ──
-enum AuthMethod {
-  WALLET
-  EMAIL
-  TELEGRAM
-}
-
 // ── User Status Flow ──
-// All new registrations complete with wallet signature → CONFIRMED immediately
+// Email registration: PENDING_EMAIL → (verify email) → PENDING_SPONSOR → (sponsor confirms) → CONFIRMED
+// Wallet-only: CONFIRMED immediately (no email/sponsor needed)
 enum UserStatus {
   PENDING_EMAIL
   PENDING_SPONSOR
@@ -26,16 +20,17 @@ enum UserStatus {
 model User {
   id            String     @id @default(uuid())
   email         String?    @unique
-  passwordHash  String?    @map("password_hash") // Legacy: not used in new OTP flow
-  status        UserStatus @default(CONFIRMED)
+  passwordHash  String?    @map("password_hash")
+  status        UserStatus @default(PENDING_EMAIL)
+  authMethod    String?    @map("auth_method") // "WALLET", "EMAIL", "TELEGRAM"
   evmAddress    String?    @unique @map("evm_address")
   tonAddress    String?    @unique @map("ton_address")
   telegramId    String?    @unique @map("telegram_id")
-  authMethod    AuthMethod @default(WALLET) @map("auth_method")
   sponsorId     String?    @map("sponsor_id")
   sponsor       User?      @relation("Sponsorship", fields: [sponsorId], references: [id])
   sponsored     User[]     @relation("Sponsorship")
   emailVerifiedAt DateTime? @map("email_verified_at")
+  lastLoginAt   DateTime?  @map("last_login_at")
   createdAt     DateTime   @default(now()) @map("created_at")
   updatedAt     DateTime   @updatedAt @map("updated_at")
 
@@ -49,37 +44,7 @@ model User {
   @@map("users")
 }
 
-// ── Pending Sessions (multi-step registration/login) ──
-model PendingSession {
-  id              String   @id @default(uuid())
-  type            String   // REGISTER_EMAIL, REGISTER_TELEGRAM, LOGIN_EMAIL, LOGIN_TELEGRAM
-  email           String?
-  telegramId      String?  @map("telegram_id")
-  telegramData    String?  @map("telegram_data") // JSON string
-  verified        Boolean  @default(false)
-  expiresAt       DateTime @map("expires_at")
-  createdAt       DateTime @default(now()) @map("created_at")
-
-  otpCodes        OtpCode[]
-
-  @@map("pending_sessions")
-}
-
-// ── OTP Codes ──
-model OtpCode {
-  id        String   @id @default(uuid())
-  sessionId String   @map("session_id")
-  session   PendingSession @relation(fields: [sessionId], references: [id])
-  code      String
-  expiresAt DateTime @map("expires_at")
-  usedAt    DateTime? @map("used_at")
-  attempts  Int      @default(0)
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@map("otp_codes")
-}
-
-// ── Email Verification Tokens (legacy - kept for backwards compat) ──
+// ── Email Verification Tokens ──
 model EmailVerificationToken {
   id        String   @id @default(uuid())
   userId    String   @map("user_id")
@@ -120,6 +85,7 @@ model LoginSession {
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@index([refreshToken])
+  @@index([userId])
   @@map("login_sessions")
 }
 
@@ -214,6 +180,54 @@ enum JobStatus {
   CONFIRMED
   FAILED
   CANCELLED
+}
+
+// ── Pending Sessions (for multi-step auth flows) ──
+model PendingSession {
+  id           String    @id @default(uuid())
+  type         String    // "REGISTER_EMAIL", "LOGIN_EMAIL", "REGISTER_TELEGRAM", "LOGIN_TELEGRAM"
+  email        String?
+  telegramId   String?   @map("telegram_id")
+  telegramData String?   @map("telegram_data")
+  verified     Boolean   @default(false)
+  expiresAt    DateTime  @map("expires_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  otpCodes OtpCode[]
+
+  @@index([expiresAt])
+  @@index([email])
+  @@map("pending_sessions")
+}
+
+// ── OTP Codes ──
+model OtpCode {
+  id        String    @id @default(uuid())
+  sessionId String    @map("session_id")
+  session   PendingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  code      String
+  attempts  Int       @default(0)
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([sessionId])
+  @@index([expiresAt])
+  @@map("otp_codes")
+}
+
+// ── Wallet Login Challenges (persistent, production-ready) ──
+model WalletChallenge {
+  id        String   @id @default(uuid())
+  address   String   @unique // normalized lowercase
+  nonce     String
+  message   String
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([address])
+  @@index([expiresAt])
+  @@map("wallet_challenges")
 }
 
 // ── Audit Log ──

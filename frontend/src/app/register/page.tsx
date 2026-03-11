@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useCallback } from "react";
+import { useState, useEffect, Suspense, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAccount, useSignMessage } from "wagmi";
@@ -221,11 +221,14 @@ function WalletRegister({ agreed, sponsorCode, refValid }: { agreed: boolean; sp
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const signingRef = useRef(false);
+  const prevConnectedRef = useRef(false);
 
   const canSubmit = agreed && !!sponsorCode && refValid === true;
 
-  const handleSign = async () => {
-    if (!address || !sponsorCode || !agreed) return;
+  const handleSign = useCallback(async () => {
+    if (!address || !sponsorCode || !agreed || signingRef.current) return;
+    signingRef.current = true;
     setLoading(true);
     setError("");
 
@@ -254,24 +257,58 @@ function WalletRegister({ agreed, sponsorCode, refValid }: { agreed: boolean; sp
     } catch (err: any) {
       if (err?.message?.includes("User rejected")) { setError("Signature rejected."); }
       else { setError("Unable to connect to server."); }
-    } finally { setLoading(false); }
-  };
+    } finally {
+      setLoading(false);
+      signingRef.current = false;
+    }
+  }, [address, sponsorCode, agreed, signMessageAsync, login, router]);
+
+  // Auto-sign when wallet connects and referral code is valid (mobile: no extra button tap)
+  useEffect(() => {
+    if (isConnected && address && !prevConnectedRef.current && canSubmit) {
+      prevConnectedRef.current = true;
+      handleSign();
+    }
+    if (!isConnected) {
+      prevConnectedRef.current = false;
+    }
+  }, [isConnected, address, canSubmit, handleSign]);
 
   return (
     <div className="space-y-4">
       <InAppBrowserBanner />
-      <p className="text-sm text-gray-400">Connect your EVM wallet to create an account.</p>
+      <p className="text-sm text-gray-400">
+        {loading
+          ? "Confirm the signature in your wallet to register..."
+          : "Connect your EVM wallet to create an account."}
+      </p>
       <GatedConnectButton agreed={agreed} />
       {isConnected && !sponsorCode && (
         <p className="text-sm text-yellow-400">Please enter a referral code above to register.</p>
       )}
-      {isConnected && sponsorCode && (
+      {isConnected && !loading && sponsorCode && (
         <button onClick={handleSign} disabled={loading || !canSubmit}
           className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white py-3 rounded-lg font-medium transition-colors">
-          {loading ? "Registering..." : "Sign & Register"}
+          Sign & Register
         </button>
       )}
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {loading && (
+        <div className="flex items-center justify-center gap-2 py-3">
+          <div className="w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm text-gray-400">Registering...</span>
+        </div>
+      )}
+      {error && (
+        <div className="space-y-2">
+          <p className="text-sm text-red-400">{error}</p>
+          {isConnected && (
+            <button onClick={handleSign}
+              className="w-full bg-gray-700 hover:bg-gray-600 text-white py-2.5 rounded-lg text-sm font-medium transition-colors">
+              Try Again
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

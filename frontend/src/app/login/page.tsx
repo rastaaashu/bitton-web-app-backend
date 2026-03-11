@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAccount, useSignMessage } from "wagmi";
@@ -96,9 +96,12 @@ function WalletLogin({ agreed }: { agreed: boolean }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const signingRef = useRef(false);
+  const prevConnectedRef = useRef(false);
 
-  const handleSign = async () => {
-    if (!address) return;
+  const handleSign = useCallback(async () => {
+    if (!address || signingRef.current) return;
+    signingRef.current = true;
     setLoading(true);
     setError("");
 
@@ -147,30 +150,63 @@ function WalletLogin({ agreed }: { agreed: boolean }) {
       }
     } finally {
       setLoading(false);
+      signingRef.current = false;
     }
-  };
+  }, [address, signMessageAsync, login, router]);
+
+  // Auto-sign when wallet connects (critical for mobile: no extra button tap needed)
+  useEffect(() => {
+    if (isConnected && address && !prevConnectedRef.current && agreed) {
+      prevConnectedRef.current = true;
+      handleSign();
+    }
+    if (!isConnected) {
+      prevConnectedRef.current = false;
+    }
+  }, [isConnected, address, agreed, handleSign]);
 
   return (
     <div className="space-y-4">
       <InAppBrowserBanner />
 
       <p className="text-sm text-gray-400">
-        Connect your EVM wallet and sign to log in.
+        {loading
+          ? "Confirm the signature in your wallet to log in..."
+          : "Connect your EVM wallet to log in."}
       </p>
 
       <GatedConnectButton agreed={agreed} />
 
-      {isConnected && (
+      {isConnected && !loading && (
         <button
           onClick={handleSign}
           disabled={loading || !agreed}
           className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white py-3 rounded-lg font-medium transition-colors"
         >
-          {loading ? "Signing in..." : "Sign & Login"}
+          Sign & Login
         </button>
       )}
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {loading && (
+        <div className="flex items-center justify-center gap-2 py-3">
+          <div className="w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm text-gray-400">Signing in...</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="space-y-2">
+          <p className="text-sm text-red-400">{error}</p>
+          {isConnected && (
+            <button
+              onClick={handleSign}
+              className="w-full bg-gray-700 hover:bg-gray-600 text-white py-2.5 rounded-lg text-sm font-medium transition-colors"
+            >
+              Try Again
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

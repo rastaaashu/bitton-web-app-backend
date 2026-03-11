@@ -125,15 +125,19 @@ export default function VaultPage() {
   const [activatingTier, setActivatingTier] = useState<number | null>(null);
   const [payWithBTN, setPayWithBTN] = useState(false);
   const [step, setStep] = useState<"idle" | "approve" | "activate">("idle");
+  const [txError, setTxError] = useState<string | null>(null);
 
   const approveHook = useApproveToken();
   const activateHook = useActivateVault();
+
+  // Track if any transaction is in progress
+  const isBusy = approveHook.isPending || activateHook.isPending;
 
   // Get the tier fee for allowance check
   const tierFee = activatingTier
     ? TIER_CONFIGS[activatingTier as 1 | 2 | 3]?.feeRaw
     : 0n;
-  const { data: btnForUSD } = useBTNAmountForUSD(tierFee || 0n);
+  const { data: btnForUSD, error: oracleError } = useBTNAmountForUSD(tierFee || 0n);
 
   const tokenAddr = payWithBTN ? CONTRACTS.btnToken : CONTRACTS.usdtToken;
   const { data: allowance, refetch: refetchAllowance } = useAllowance(
@@ -143,13 +147,21 @@ export default function VaultPage() {
 
   const neededAmount = payWithBTN ? (btnForUSD as bigint) || 0n : tierFee || 0n;
 
+  // Check if user has enough balance for the selected payment method
+  const userBalance = payWithBTN ? (btnBalance as bigint) || 0n : (usdtBalance as bigint) || 0n;
+  const hasEnoughBalance = neededAmount > 0n && userBalance >= neededAmount;
+
   const handleActivate = (tierId: number, withBTN: boolean) => {
+    if (isBusy) return;
+    setTxError(null);
+    approveHook.reset();
+    activateHook.reset();
     setActivatingTier(tierId);
     setPayWithBTN(withBTN);
     setStep("approve");
   };
 
-  // Step machine
+  // Step machine: auto-advance to activate when allowance is sufficient
   useEffect(() => {
     if (step === "approve" && activatingTier) {
       const currentAllowance = (allowance as bigint) || 0n;
@@ -165,11 +177,28 @@ export default function VaultPage() {
     }
   }, [approveHook.isSuccess, refetchAllowance]);
 
+  // Show approval errors
+  useEffect(() => {
+    if (approveHook.isError && approveHook.error) {
+      const msg = (approveHook.error as any)?.shortMessage || approveHook.error.message || "Approval failed";
+      setTxError(msg);
+    }
+  }, [approveHook.isError, approveHook.error]);
+
+  // Show activation errors
+  useEffect(() => {
+    if (activateHook.isError && activateHook.error) {
+      const msg = (activateHook.error as any)?.shortMessage || activateHook.error.message || "Activation failed";
+      setTxError(msg);
+    }
+  }, [activateHook.isError, activateHook.error]);
+
   useEffect(() => {
     if (activateHook.isSuccess) {
       refetchVault();
       setStep("idle");
       setActivatingTier(null);
+      setTxError(null);
     }
   }, [activateHook.isSuccess, refetchVault]);
 
@@ -227,8 +256,9 @@ export default function VaultPage() {
             currentTier={currentTier}
             onActivate={handleActivate}
             isActivating={
-              activatingTier === t &&
-              (approveHook.isPending || activateHook.isPending)
+              isBusy ||
+              (activatingTier === t &&
+              (approveHook.isPending || activateHook.isPending))
             }
           />
         ))}
@@ -242,6 +272,33 @@ export default function VaultPage() {
             {payWithBTN ? "BTN" : "USDT"}
           </h3>
 
+          {/* Balance warning */}
+          {!hasEnoughBalance && neededAmount > 0n && (
+            <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg">
+              <p className="text-red-400 text-sm">
+                Insufficient {payWithBTN ? "BTN" : "USDT"} balance.
+                You need {formatBTN(neededAmount)} {payWithBTN ? "BTN" : "USDT"} but have {formatBTN(userBalance)}.
+              </p>
+            </div>
+          )}
+
+          {/* Oracle error warning (BTN payment only) */}
+          {payWithBTN && oracleError && (
+            <div className="mb-4 p-3 bg-yellow-900/30 border border-yellow-700 rounded-lg">
+              <p className="text-yellow-400 text-sm">
+                Price oracle is unavailable. BTN price cannot be determined.
+                Try paying with USDT instead, or try again later.
+              </p>
+            </div>
+          )}
+
+          {/* Transaction error */}
+          {txError && (
+            <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg">
+              <p className="text-red-400 text-sm break-all">{txError}</p>
+            </div>
+          )}
+
           {step === "approve" && (
             <div className="space-y-3">
               <p className="text-sm text-gray-400">
@@ -251,13 +308,16 @@ export default function VaultPage() {
               <TxButton
                 label={`Approve ${payWithBTN ? "BTN" : "USDT"}`}
                 pendingLabel="Approving..."
-                onClick={() =>
+                onClick={() => {
+                  if (isBusy) return;
+                  setTxError(null);
                   approveHook.approve(
                     tokenAddr,
                     CONTRACTS.vaultManager,
                     neededAmount
-                  )
-                }
+                  );
+                }}
+                disabled={isBusy || !hasEnoughBalance || neededAmount === 0n}
                 isPending={approveHook.isPending}
                 isSuccess={approveHook.isSuccess}
                 isError={approveHook.isError}
@@ -272,7 +332,12 @@ export default function VaultPage() {
               <TxButton
                 label="Activate Vault"
                 pendingLabel="Activating..."
-                onClick={() => activateHook.activate(activatingTier)}
+                onClick={() => {
+                  if (isBusy) return;
+                  setTxError(null);
+                  activateHook.activate(activatingTier);
+                }}
+                disabled={isBusy}
                 isPending={activateHook.isPending}
                 isSuccess={activateHook.isSuccess}
                 isError={activateHook.isError}
@@ -286,6 +351,7 @@ export default function VaultPage() {
             onClick={() => {
               setStep("idle");
               setActivatingTier(null);
+              setTxError(null);
               approveHook.reset();
               activateHook.reset();
             }}

@@ -13,11 +13,13 @@ module.exports = {
   solidity: "0.8.27",
   networks: {
     hardhat: {},
-    base_sepolia: {
-      url: BASE_SEPOLIA_RPC_URL,
-      accounts: [BASE_SEPOLIA_PRIVATE_KEY],
-      chainId: 84532,
-    },
+    ...(BASE_SEPOLIA_PRIVATE_KEY ? {
+      base_sepolia: {
+        url: BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org",
+        accounts: [BASE_SEPOLIA_PRIVATE_KEY],
+        chainId: 84532,
+      },
+    } : {}),
   },
   etherscan: {
     apiKey: BASESCAN_API_KEY,

@@ -17,6 +17,7 @@ export default function WithdrawPage() {
   const withdrawHook = useWithdraw();
 
   const [amount, setAmount] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const parsedAmount = parseBTN(amount);
   const balance = (withdrawable as bigint) || 0n;
   const hasBalance = balance > 0n;
@@ -68,6 +69,8 @@ export default function WithdrawPage() {
             value={amount}
             onChange={(e) => {
               const val = e.target.value.replace(/[^0-9.]/g, "");
+              const parts = val.split('.');
+              if (parts[1] && parts[1].length > 6) return;
               setAmount(val);
             }}
             className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white pr-16"
@@ -92,8 +95,16 @@ export default function WithdrawPage() {
           label="Withdraw BTN"
           pendingLabel="Withdrawing..."
           successLabel="Withdrawn!"
-          onClick={() => withdrawHook.withdraw(parsedAmount)}
-          disabled={!isValidAmount}
+          onClick={() => {
+            if (isSubmitting) return;
+            setIsSubmitting(true);
+            try {
+              withdrawHook.withdraw(parsedAmount);
+            } finally {
+              setIsSubmitting(false);
+            }
+          }}
+          disabled={!isValidAmount || isSubmitting}
           isPending={withdrawHook.isPending}
           isSuccess={withdrawHook.isSuccess}
           isError={withdrawHook.isError}

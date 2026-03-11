@@ -7,6 +7,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useSignMessage } from "wagmi";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_BASE_URL } from "@/config/constants";
+import { InAppBrowserBanner } from "@/components/auth/InAppBrowserBanner";
 
 type AuthTab = "wallet" | "email" | "telegram";
 
@@ -150,6 +151,8 @@ function WalletLogin({ agreed }: { agreed: boolean }) {
 
   return (
     <div className="space-y-4">
+      <InAppBrowserBanner />
+
       <p className="text-sm text-gray-400">
         Connect your EVM wallet and sign to log in.
       </p>
@@ -379,6 +382,7 @@ function EmailLogin({ agreed }: { agreed: boolean }) {
       {step === "wallet" && (
         <div className="space-y-4">
           <p className="text-sm text-green-400">Email verified! Now connect your wallet.</p>
+          <InAppBrowserBanner />
           <div className="flex justify-center">
             <ConnectButton />
           </div>
@@ -529,6 +533,7 @@ function TelegramLogin({ agreed }: { agreed: boolean }) {
       {step === "wallet" && (
         <div className="space-y-4">
           <p className="text-sm text-green-400">Telegram verified! Now connect your wallet.</p>
+          <InAppBrowserBanner />
           <div className="flex justify-center">
             <ConnectButton />
           </div>

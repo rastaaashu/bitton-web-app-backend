@@ -7,6 +7,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useSignMessage } from "wagmi";
 import { useAuth } from "@/contexts/AuthContext";
 import { API_BASE_URL } from "@/config/constants";
+import { InAppBrowserBanner } from "@/components/auth/InAppBrowserBanner";
 
 type AuthTab = "wallet" | "email" | "telegram";
 
@@ -234,7 +235,7 @@ function WalletRegister({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const canSubmit = agreed && !!sponsorCode && refValid !== false;
+  const canSubmit = agreed && !!sponsorCode && refValid === true;
 
   const handleSign = async () => {
     if (!address || !sponsorCode) return;
@@ -296,6 +297,8 @@ function WalletRegister({
 
   return (
     <div className="space-y-4">
+      <InAppBrowserBanner />
+
       <p className="text-sm text-gray-400">
         Connect your EVM wallet to create an account. No email or Telegram needed.
       </p>
@@ -546,6 +549,7 @@ function EmailRegister({
       {step === "wallet" && (
         <div className="space-y-4">
           <p className="text-sm text-green-400">Email verified! Now connect your wallet.</p>
+          <InAppBrowserBanner />
           <div className="flex justify-center">
             <ConnectButton />
           </div>
@@ -721,6 +725,7 @@ function TelegramRegister({
               : ""}
             ! Now connect your wallet.
           </p>
+          <InAppBrowserBanner />
           <div className="flex justify-center">
             <ConnectButton />
           </div>

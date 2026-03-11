@@ -10,32 +10,32 @@ export default function HistoryPage() {
   const { isConnected, address } = useAccount();
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchHistory = async () => {
+    if (!address) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/history/${address}`);
+      if (res.ok) {
+        const data = await res.json();
+        setHistory(data.history || data || []);
+      } else {
+        setError('Unable to load transaction history. Please try again.');
+        setHistory([]);
+      }
+    } catch {
+      setError('Unable to load transaction history. Please try again.');
+      setHistory([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (!address) return;
-
-    async function fetchHistory() {
-      setLoading(true);
-      setError("");
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/history/${address}`);
-        if (res.ok) {
-          const data = await res.json();
-          setHistory(data.history || data || []);
-        } else {
-          // Backend not available, show empty state
-          setHistory([]);
-        }
-      } catch {
-        // Backend not available
-        setHistory([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-
     fetchHistory();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address]);
 
   if (!isConnected) {
@@ -77,6 +77,23 @@ export default function HistoryPage() {
                   </tr>
                 ))}
               </>
+            ) : error ? (
+              <tr>
+                <td
+                  colSpan={4}
+                  className="px-4 py-12 text-center"
+                >
+                  <div className="space-y-2">
+                    <p className="text-red-400">{error}</p>
+                    <button
+                      onClick={() => fetchHistory()}
+                      className="mt-4 text-brand-400 hover:underline"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                </td>
+              </tr>
             ) : history.length === 0 ? (
               <tr>
                 <td

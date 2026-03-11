@@ -1,5 +1,4 @@
 {
-  "contractName": "StakingVault",
   "abi": [
     {
       "inputs": [],
@@ -141,6 +140,11 @@
     {
       "inputs": [],
       "name": "StakeNotActive",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "StakeTooSmall",
       "type": "error"
     },
     {
@@ -499,6 +503,19 @@
     {
       "inputs": [],
       "name": "LONG_MULTIPLIER",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MIN_STAKE",
       "outputs": [
         {
           "internalType": "uint256",

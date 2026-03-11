@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import { randomUUID } from "crypto";
 import { env } from "./config/env";
 import { logger } from "./utils/logger";
 import { prisma } from "./utils/prisma";
@@ -32,6 +33,13 @@ if (env.nodeEnv !== "production") {
 }
 app.use(cors({ origin: corsOrigins, credentials: true }));
 app.use(express.json({ limit: "10mb" }));
+
+// Request ID for tracing
+app.use((req, res, next) => {
+  (req as any).requestId = req.headers["x-request-id"] || randomUUID();
+  res.setHeader("X-Request-ID", (req as any).requestId);
+  next();
+});
 
 // Routes
 app.use("/", healthRouter);

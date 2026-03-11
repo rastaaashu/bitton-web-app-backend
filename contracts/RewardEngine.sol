@@ -211,7 +211,7 @@ contract RewardEngine is
      *         Anyone can call (owner pre-funds, but no restriction).
      * @param amount BTN amount to deposit (6 decimals)
      */
-    function fundRewards(uint256 amount) external nonReentrant {
+    function fundRewards(uint256 amount) external nonReentrant whenNotPaused {
         if (amount == 0) revert ZeroAmount();
         btnToken.safeTransferFrom(msg.sender, address(this), amount);
         rewardPoolBalance += amount;
@@ -302,4 +302,7 @@ contract RewardEngine is
      * @dev UUPS authorization — only admin can upgrade
      */
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    // ─── Storage Gap ──────────────────────────────────────────
+    uint256[50] private __gap;
 }

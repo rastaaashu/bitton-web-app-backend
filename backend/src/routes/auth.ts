@@ -57,7 +57,7 @@ const otpLimiter = rateLimit({
 // ── Helpers ──
 
 function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return crypto.randomInt(100000, 999999).toString();
 }
 
 function generateSponsorCode(): string {
@@ -1768,8 +1768,12 @@ router.post("/logout", async (req: Request, res: Response) => {
 // ════════════════════════════════════════
 // INFO: Get Telegram bot config (for frontend widget)
 // ════════════════════════════════════════
-// Diagnostic: test SMTP connection (admin only, remove in production)
+// Diagnostic: test SMTP connection (admin only, blocked in production)
 router.post("/test-smtp", async (req: Request, res: Response) => {
+  if (process.env.NODE_ENV === "production") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
   const apiKey = req.headers["x-admin-key"];
   if (apiKey !== process.env.ADMIN_API_KEY) {
     res.status(401).json({ error: "Unauthorized" });

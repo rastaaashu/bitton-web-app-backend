@@ -29,8 +29,7 @@ const beAbi = BonusEngineABI.abi as readonly unknown[];
 
 function UserLookup() {
   const [lookupAddr, setLookupAddr] = useState("");
-  const isValid =
-    lookupAddr.length === 42 && lookupAddr.startsWith("0x");
+  const isValid = /^0x[a-fA-F0-9]{40}$/.test(lookupAddr);
 
   const { data: userTier } = useReadContract({
     address: CONTRACTS.vaultManager,

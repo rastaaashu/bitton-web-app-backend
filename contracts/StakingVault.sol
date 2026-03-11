@@ -38,6 +38,7 @@ contract StakingVault is
     uint256 public constant EARLY_EXIT_PENALTY_BPS = 1500; // 15% in basis points
     uint256 public constant LONG_MULTIPLIER = 12;          // 1.2x (÷10)
     uint256 public constant DEFAULT_MULTIPLIER = 10;       // 1.0x (÷10)
+    uint256 public constant MIN_STAKE = 1e6;               // 1 BTN minimum (6 decimals)
 
     // ─── Structs ─────────────────────────────────────────────
     struct StakeInfo {
@@ -72,6 +73,7 @@ contract StakingVault is
     error LockPeriodNotMet(uint256 elapsed, uint256 required);
     error TreasuryNotSet();
     error VaultNotActive();
+    error StakeTooSmall();
     error ZeroAddress();
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -118,6 +120,7 @@ contract StakingVault is
      */
     function stake(uint256 amount, uint8 programType) external nonReentrant whenNotPaused {
         if (amount == 0) revert ZeroAmount();
+        if (amount < MIN_STAKE) revert StakeTooSmall();
         if (programType > 1) revert InvalidProgramType(programType);
 
         // Vault-activation gating (skip if vaultManager not wired yet)
@@ -338,4 +341,7 @@ contract StakingVault is
      * @dev UUPS authorization — only admin can upgrade
      */
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    // ─── Storage Gap ──────────────────────────────────────────
+    uint256[50] private __gap;
 }

@@ -199,4 +199,7 @@ contract VestingPool is
      * @dev UUPS authorization — only admin can upgrade
      */
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    // ─── Storage Gap ──────────────────────────────────────────
+    uint256[50] private __gap;
 }

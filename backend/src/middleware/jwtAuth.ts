@@ -27,7 +27,7 @@ export function jwtAuth(req: Request, res: Response, next: NextFunction): void {
   const token = authHeader.slice(7);
 
   try {
-    const decoded = jwt.verify(token, env.authSecret) as JwtPayload;
+    const decoded = jwt.verify(token, env.authSecret, { algorithms: ['HS256'] }) as JwtPayload;
     req.user = decoded;
     next();
   } catch {
@@ -36,11 +36,11 @@ export function jwtAuth(req: Request, res: Response, next: NextFunction): void {
 }
 
 export function signAccessToken(payload: JwtPayload): string {
-  const opts: SignOptions = { expiresIn: env.jwtAccessExpiry as any };
+  const opts: SignOptions = { expiresIn: env.jwtAccessExpiry as any, algorithm: 'HS256' };
   return jwt.sign(payload as object, env.authSecret, opts);
 }
 
 export function signRefreshToken(payload: JwtPayload): string {
-  const opts: SignOptions = { expiresIn: env.jwtRefreshExpiry as any };
+  const opts: SignOptions = { expiresIn: env.jwtRefreshExpiry as any, algorithm: 'HS256' };
   return jwt.sign(payload as object, env.authSecret, opts);
 }

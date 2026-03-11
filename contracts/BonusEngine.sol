@@ -3,6 +3,7 @@ pragma solidity ^0.8.27;
 
 import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "./interfaces/IVaultManager.sol";
@@ -31,6 +32,7 @@ contract BonusEngine is
     Initializable,
     AccessControlUpgradeable,
     PausableUpgradeable,
+    ReentrancyGuardUpgradeable,
     UUPSUpgradeable
 {
     // ─── Roles ───────────────────────────────────────────────
@@ -41,6 +43,7 @@ contract BonusEngine is
     uint256 public constant DIRECT_BONUS_BPS = 500; // 5% in basis points
     uint256 public constant MIN_PERSONAL_STAKE = 500 * 1e6; // 500 BTN (6 decimals)
     uint256 public constant MAX_MATCHING_LEVELS = 10;
+    uint256 public constant MAX_CHAIN_DEPTH = 100;
 
     // ─── State ───────────────────────────────────────────────
     address public rewardEngine;
@@ -95,6 +98,7 @@ contract BonusEngine is
 
         __AccessControl_init();
         __Pausable_init();
+        __ReentrancyGuard_init();
         __UUPSUpgradeable_init();
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
@@ -133,11 +137,13 @@ contract BonusEngine is
         if (referrer[msg.sender] != address(0)) revert ReferrerAlreadySet();
 
         // Prevent circular referral: walk up the chain from _referrer
-        // If we ever find msg.sender, it's circular
+        // If we ever find msg.sender, it's circular (depth-limited to prevent DoS)
         address current = _referrer;
-        while (current != address(0)) {
+        uint256 depth = 0;
+        while (current != address(0) && depth < MAX_CHAIN_DEPTH) {
             if (current == msg.sender) revert CircularReferral();
             current = referrer[current];
+            depth++;
         }
 
         referrer[msg.sender] = _referrer;
@@ -158,7 +164,7 @@ contract BonusEngine is
     function processDirectBonus(
         address staker,
         uint256 stakeAmount
-    ) external onlyRole(OPERATOR_ROLE) whenNotPaused {
+    ) external onlyRole(OPERATOR_ROLE) whenNotPaused nonReentrant {
         address ref = referrer[staker];
         if (ref == address(0)) return; // no referrer, nothing to do
 
@@ -191,7 +197,7 @@ contract BonusEngine is
     function processMatchingBonus(
         address user,
         uint256 rewardAmount
-    ) external onlyRole(OPERATOR_ROLE) whenNotPaused {
+    ) external onlyRole(OPERATOR_ROLE) whenNotPaused nonReentrant {
         if (rewardEngine == address(0)) revert RewardEngineNotSet();
 
         address ancestor = referrer[user];
@@ -301,4 +307,7 @@ contract BonusEngine is
      * @dev UUPS authorization — only admin can upgrade
      */
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    // ─── Storage Gap ──────────────────────────────────────────
+    uint256[50] private __gap;
 }

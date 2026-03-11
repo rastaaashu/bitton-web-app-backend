@@ -1,5 +1,4 @@
 {
-  "contractName": "VaultManager",
   "abi": [
     {
       "inputs": [],
@@ -109,6 +108,22 @@
     {
       "inputs": [],
       "name": "NotInitializing",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint8",
+          "name": "decimals",
+          "type": "uint8"
+        }
+      ],
+      "name": "OracleDecimalsInvalid",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "OracleIncompleteRound",
       "type": "error"
     },
     {

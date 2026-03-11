@@ -53,7 +53,32 @@
       "Bash(git config:*)",
       "Bash(__NEW_LINE_b68f072bb5f339bc__ curl:*)",
       "Bash(echo Files copied:*)",
-      "Bash(# Update the GitHub backend repo with latest files\ncp \"C:\\\\Users\\\\aashu\\\\OneDrive\\\\Desktop\\\\Projects\\\\bitton-contracts\\\\backend\\\\src\\\\services\\\\email.service.ts\" /tmp/bitton-web-app-backend/src/services/ && \\\\\ncp \"C:\\\\Users\\\\aashu\\\\OneDrive\\\\Desktop\\\\Projects\\\\bitton-contracts\\\\backend\\\\src\\\\config\\\\env.ts\" /tmp/bitton-web-app-backend/src/config/ && \\\\\ncp \"C:\\\\Users\\\\aashu\\\\OneDrive\\\\Desktop\\\\Projects\\\\bitton-contracts\\\\backend\\\\src\\\\routes\\\\auth.ts\" /tmp/bitton-web-app-backend/src/routes/ && \\\\\ncd /tmp/bitton-web-app-backend && git add -A && git status --short 2>&1)"
+      "Bash(# Update the GitHub backend repo with latest files\ncp \"C:\\\\Users\\\\aashu\\\\OneDrive\\\\Desktop\\\\Projects\\\\bitton-contracts\\\\backend\\\\src\\\\services\\\\email.service.ts\" /tmp/bitton-web-app-backend/src/services/ && \\\\\ncp \"C:\\\\Users\\\\aashu\\\\OneDrive\\\\Desktop\\\\Projects\\\\bitton-contracts\\\\backend\\\\src\\\\config\\\\env.ts\" /tmp/bitton-web-app-backend/src/config/ && \\\\\ncp \"C:\\\\Users\\\\aashu\\\\OneDrive\\\\Desktop\\\\Projects\\\\bitton-contracts\\\\backend\\\\src\\\\routes\\\\auth.ts\" /tmp/bitton-web-app-backend/src/routes/ && \\\\\ncd /tmp/bitton-web-app-backend && git add -A && git status --short 2>&1)",
+      "Bash(# Sync latest backend files to the GitHub backend repo\ncp \"C:\\\\Users\\\\aashu\\\\OneDrive\\\\Desktop\\\\Projects\\\\bitton-contracts\\\\backend\\\\src\\\\services\\\\email.service.ts\" /tmp/bitton-web-app-backend/src/services/ && \\\\\ncp \"C:\\\\Users\\\\aashu\\\\OneDrive\\\\Desktop\\\\Projects\\\\bitton-contracts\\\\backend\\\\src\\\\config\\\\env.ts\" /tmp/bitton-web-app-backend/src/config/ && \\\\\ncp \"C:\\\\Users\\\\aashu\\\\OneDrive\\\\Desktop\\\\Projects\\\\bitton-contracts\\\\backend\\\\src\\\\routes\\\\auth.ts\" /tmp/bitton-web-app-backend/src/routes/ && \\\\\ncd /tmp/bitton-web-app-backend && git add -A && git diff --cached --stat 2>&1)",
+      "Bash(DATABASE_URL=\"postgresql://fake:fake@localhost:5432/fake\" npx prisma:*)",
+      "Bash(docker:*)",
+      "Bash(where gh:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(npm test:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "WebFetch(domain:bitton-contracts.onrender.com)",
+      "WebFetch(domain:bitton-contracts.vercel.app)",
+      "WebFetch(domain:bitton-backend.onrender.com)",
+      "Bash(npx tsx:*)",
+      "Bash(gh api:*)",
+      "Bash(vercel whoami:*)",
+      "WebSearch",
+      "WebFetch(domain:docs.ton.org)",
+      "WebFetch(domain:old-docs.ton.org)",
+      "WebFetch(domain:docs.tonconsole.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:tonapi.io)",
+      "WebFetch(domain:toncenter.com)",
+      "WebFetch(domain:gist.github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:docs.chainstack.com)"
     ]
   }
 }

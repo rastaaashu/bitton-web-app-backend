@@ -63,6 +63,8 @@ contract VaultManager is
     error OracleNotSet();
     error OracleStale(uint256 updatedAt, uint256 currentTime);
     error OraclePriceInvalid(int256 price);
+    error OracleIncompleteRound();
+    error OracleDecimalsInvalid(uint8 decimals);
     error InsufficientAllowance();
     error ZeroAddress();
 
@@ -226,12 +228,22 @@ contract VaultManager is
         IAggregatorV3 oracle = IAggregatorV3(oracleAddress);
         uint8 oracleDecimals = oracle.decimals();
 
+        // Validate oracle decimals are within a sane range
+        if (oracleDecimals < 6 || oracleDecimals > 18) revert OracleDecimalsInvalid(oracleDecimals);
+
         (
-            ,
+            uint80 roundId,
             int256 price,
             ,
             uint256 updatedAt,
+            uint80 answeredInRound
         ) = oracle.latestRoundData();
+
+        // Check round completeness
+        if (answeredInRound < roundId) revert OracleIncompleteRound();
+
+        // updatedAt must be non-zero
+        if (updatedAt == 0) revert OracleStale(0, block.timestamp);
 
         // Staleness check: revert if >1 hour old
         if (block.timestamp - updatedAt > ORACLE_STALENESS) {
@@ -254,4 +266,7 @@ contract VaultManager is
      * @dev UUPS authorization — only admin can upgrade
      */
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+
+    // ─── Storage Gap ──────────────────────────────────────────
+    uint256[50] private __gap;
 }

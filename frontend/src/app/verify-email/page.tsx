@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { API_BASE_URL } from "@/config/constants";
 
 export default function VerifyEmailPage() {
@@ -14,10 +14,12 @@ export default function VerifyEmailPage() {
 }
 
 function VerifyEmailContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
   const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
   const [message, setMessage] = useState("");
+  const [countdown, setCountdown] = useState(3);
 
   useEffect(() => {
     if (!token) {
@@ -52,6 +54,23 @@ function VerifyEmailContent() {
     verify();
   }, [token]);
 
+  // Auto-redirect after successful verification
+  useEffect(() => {
+    if (status !== "success") return;
+    setCountdown(3);
+    const interval = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          router.push("/login");
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [status, router]);
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 max-w-md w-full text-center">
@@ -68,7 +87,10 @@ function VerifyEmailContent() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <p className="text-green-400 mb-6">{message}</p>
+            <p className="text-green-400 mb-2">{message}</p>
+            <p className="text-gray-400 text-sm mb-6">
+              Redirecting to login in {countdown} seconds...
+            </p>
             <Link
               href="/login"
               className="inline-block bg-brand-600 hover:bg-brand-700 text-white px-6 py-2.5 rounded-lg font-medium transition-colors"

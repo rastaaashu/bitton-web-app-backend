@@ -29,13 +29,8 @@ body {
   z-index: 99998 !important;
 }
 
-/* Mobile touch targets — minimum 44x44px per WCAG */
+/* Mobile: ensure RainbowKit buttons have proper touch targets */
 @media (max-width: 768px) {
-  button, a, [role="button"] {
-    min-height: 44px;
-  }
-
-  /* Make ConnectButton full width on mobile for easier tapping */
   [data-rk] button {
     min-height: 44px;
     font-size: 14px;

@@ -1,6 +1,7 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { randomUUID } from "crypto";
 import { env } from "./config/env";
 import { logger } from "./utils/logger";
@@ -19,7 +20,26 @@ import contractsRouter from "./routes/contracts";
 const app = express();
 
 // Middleware
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        connectSrc: ["'self'"],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    },
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+  })
+);
 
 // CORS: production only allows APP_URL; development also allows localhost
 const corsOrigins: string[] = [env.appUrl].filter(Boolean);
@@ -32,7 +52,24 @@ if (env.nodeEnv !== "production") {
   );
 }
 app.use(cors({ origin: corsOrigins, credentials: true }));
-app.use(express.json({ limit: "10mb" }));
+
+// Limit JSON body size to prevent DoS via large payloads
+app.use(express.json({ limit: "1mb" }));
+
+// Disable X-Powered-By header (already handled by helmet but explicit)
+app.disable("x-powered-by");
+
+// Global rate limiter: 100 requests per minute per IP
+app.use(
+  rateLimit({
+    windowMs: 60 * 1000,
+    max: 100,
+    message: { error: "Rate limit exceeded. Please slow down." },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: (req) => req.path === "/health", // Don't rate limit health checks
+  })
+);
 
 // Request ID for tracing
 app.use((req, res, next) => {

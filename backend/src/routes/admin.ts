@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { adminAuth } from "../middleware/adminAuth";
 import { migrationService } from "../services/migration.service";
 import { chainService } from "../services/chain.service";
+import { validateSnapshot } from "../services/ton-verification.service";
 import { prisma } from "../utils/prisma";
 import { logger } from "../utils/logger";
 import { JobType, JobStatus } from "@prisma/client";
@@ -24,6 +25,16 @@ router.post("/ton/import-snapshot", async (req: Request, res: Response) => {
     }
     if (!snapshotAt || !batchId) {
       res.status(400).json({ error: "snapshotAt and batchId are required" });
+      return;
+    }
+
+    // Validate snapshot data before import
+    const validation = validateSnapshot(rows);
+    if (!validation.valid) {
+      res.status(400).json({
+        error: "Snapshot validation failed",
+        errors: validation.errors,
+      });
       return;
     }
 

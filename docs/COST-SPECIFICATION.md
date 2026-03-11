@@ -249,4 +249,106 @@ Everything currently runs on free tiers:
 
 ---
 
+---
+
+## 9. DEVELOPER / STAFFING COSTS
+
+### Option A: In-House Team (Full-Time)
+
+| Role | Monthly Salary (USD) | Location |
+|------|---------------------|----------|
+| Senior Solidity Developer | $10,000-20,000 | Remote |
+| Senior Full-Stack Developer | $8,000-15,000 | Remote |
+| DevOps / SRE Engineer | $8,000-12,000 | Remote |
+| QA Engineer | $5,000-8,000 | Remote |
+| Project Manager | $6,000-10,000 | Remote |
+| **TOTAL (full team)** | **$37,000-65,000/mo** | |
+
+### Option B: Contract / Part-Time
+
+| Role | Monthly Cost | Scope |
+|------|-------------|-------|
+| Solidity consultant (10 hrs/mo) | $2,000-5,000 | Upgrades, audits, new features |
+| Full-stack developer (20 hrs/mo) | $3,000-6,000 | Frontend + backend maintenance |
+| DevOps (5 hrs/mo) | $1,000-2,000 | Monitoring, deployments |
+| **TOTAL (part-time)** | **$6,000-13,000/mo** | |
+
+### Option C: AI-Assisted Development (Current Approach)
+
+| Item | Cost |
+|------|------|
+| Claude Code (Anthropic) | $100-200/mo |
+| Human oversight (10 hrs/mo) | $1,000-3,000/mo |
+| **TOTAL** | **$1,100-3,200/mo** |
+
+**Note:** Current development has been 100% AI-assisted using Claude Code. The entire system (10 contracts, 618 tests, backend, frontend, docs) was built with AI, reviewed by human.
+
+---
+
+## 10. HOSTING COST BREAKDOWN (Current $0/month)
+
+### What We're Using Right Now (Free)
+
+| Service | Provider | Free Tier Limits | Status |
+|---------|----------|-----------------|--------|
+| Frontend | Vercel | 100GB bandwidth, 100 deploys/day | Active |
+| Backend | Render | 750 hrs/mo, sleeps after 15 min idle | Active |
+| Database | Neon PostgreSQL | 0.5 GB, 3 GB transfer | Active |
+| RPC | Base Sepolia (public) | Unlimited (testnet) | Active |
+| Email | Resend | 100 emails/day, 3K/month | Not configured |
+| Git hosting | GitLab | 5 GB storage | Active |
+| Wallet infra | WalletConnect Cloud | Free | Active |
+| **TOTAL** | | | **$0/month** |
+
+### Why It's Free
+- All services offer free tiers sufficient for development and demo
+- Base Sepolia testnet has no gas costs (faucet ETH)
+- No domain purchased yet (using Vercel subdomain)
+- AI development eliminates developer salaries during build phase
+
+### When Free Tier Runs Out
+- **Render**: Backend sleeps after 15 min idle → First user request takes 30-60s
+- **Neon**: 0.5 GB database → Sufficient for ~100K users before upgrade needed
+- **Vercel**: 100 GB bandwidth → Sufficient for ~50K monthly visits
+
+---
+
+## 11. TOTAL COST TIMELINE
+
+### Pre-Launch (Now)
+| Item | Cost |
+|------|------|
+| Infrastructure | $0/month |
+| Development | $0 (AI-assisted) |
+| Testing | $0 |
+| **TOTAL** | **$0** |
+
+### Launch Preparation (1-2 months)
+| Item | One-Time | Monthly |
+|------|----------|---------|
+| Security audit | $15,000-80,000 | — |
+| Render upgrade | — | $7 |
+| Email API key | — | $0 |
+| Domain | $15 | — |
+| Multisig setup | $12 | — |
+| **TOTAL** | **$15,027-80,027** | **$7/mo** |
+
+### Mainnet Launch
+| Item | One-Time | Monthly |
+|------|----------|---------|
+| Contract deployment | $120 | — |
+| DEX liquidity | $10,000-50,000 | — |
+| Migration (60K users) | $23 | — |
+| Infrastructure | — | $50-200 |
+| **TOTAL** | **$10,143-50,143** | **$50-200/mo** |
+
+### Post-Launch Operations (ongoing)
+| Scale | Users | Monthly Cost |
+|-------|-------|-------------|
+| Year 1 | 60K-100K | $50-500 |
+| Year 2 | 100K-500K | $500-3,000 |
+| Year 3 | 500K-2M | $3,000-10,000 |
+
+---
+
 *All costs are estimates based on March 2026 pricing. Actual costs may vary based on usage patterns, provider negotiations, and market conditions.*

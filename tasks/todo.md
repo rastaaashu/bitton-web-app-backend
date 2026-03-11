@@ -305,3 +305,50 @@
 - [x] npx hardhat test passes (618/618 contracts)
 - [x] docs/CHANGELOG_TODAY.md
 - [x] tasks/todo.md updated
+
+## Phase 13 — Security Hardening & TON Verification
+
+### A: TON Wallet Verification
+- [x] Created `backend/src/utils/ton-proof.ts` — TonConnect ton_proof verification (Ed25519)
+- [x] Updated `backend/src/routes/migration.ts` — Challenge-response + verified wallet linking
+- [x] Created `backend/src/services/ton-verification.service.ts` — On-chain balance verification via TON API
+- [x] Added `POST /migration/challenge` endpoint
+- [x] Added `GET /migration/verify-balance/:tonAddress` endpoint
+- [x] Added `POST /migration/link-wallet-dev` (dev-only, disabled in production)
+- [x] Rate limiting on migration endpoints (10 req/5 min)
+- [x] Anti-replay (one-time challenge, 5-min expiry)
+- [x] Anti-double-claim (TON→EVM uniqueness, EVM→TON uniqueness)
+- [x] Snapshot validation on import (duplicates, negatives, max supply check)
+
+### B: Backend Security Hardening
+- [x] Global rate limiter (100 req/min per IP)
+- [x] Helmet with full CSP, HSTS, referrer policy
+- [x] JSON body size limit reduced (10MB → 1MB)
+- [x] X-Powered-By disabled
+
+### C: Security Audit (Automated)
+- [x] Smart contract security audit (3 agents)
+- [x] Backend security audit
+- [x] Frontend security audit
+
+### D: Documentation
+- [x] docs/PROGRESS_REPORT.md — Full system status document
+- [x] docs/COST-SPECIFICATION.md — Updated with developer costs, hosting breakdown, timeline
+
+### E: Build Verification
+- [x] npx hardhat test — 618/618 passing
+- [x] Backend npx tsc --noEmit — 0 errors
+- [x] Backend npm run build — clean
+- [x] Frontend npm run build — all 15 pages built
+
+### Remaining for Mainnet
+- [ ] External security audit ($15K-80K)
+- [ ] Gnosis Safe multisig setup
+- [ ] TimelockController deployment
+- [ ] Bug bounty program (Immunefi)
+- [ ] Email service configuration (Resend API key)
+- [ ] Redis caching (Upstash)
+- [ ] Frontend E2E tests (Vitest + Playwright)
+- [ ] Backend test coverage expansion
+- [ ] Render upgrade ($7/mo) for always-on
+- [ ] Domain purchase + DNS setup

@@ -60,8 +60,11 @@ export const STAKING_VAULT_ABI = [
   "function getStakes(address user) view returns (tuple(uint256 amount, uint256 startTime, uint8 programType, uint256 lastRewardTime, bool active)[])",
   "function getPendingRewards(address user, uint256 stakeIndex) view returns (uint256)",
   "function totalStaked() view returns (uint256)",
+  "function easyStartRate() view returns (uint256)",
+  "function earlyExitPenaltyBps() view returns (uint256)",
   "event Staked(address indexed user, uint256 amount, uint8 programType, uint256 stakeIndex)",
-  "event Unstaked(address indexed user, uint256 stakeIndex, uint256 amount, uint256 penalty)",
+  "event Unstaked(address indexed user, uint256 principal, uint256 stakeIndex)",
+  "event UnstakedWithPenalty(address indexed user, uint256 returned, uint256 penalty, uint256 stakeIndex)",
 ];
 
 export const VESTING_POOL_ABI = [

@@ -87,7 +87,7 @@ router.get("/dashboard/:address", async (req: Request, res: Response) => {
       const lastRewardTime = stake.lastRewardTime ?? stake[3];
       const isActive = stake.active ?? stake[4];
 
-      const lockDays = Number(programType) === 0 ? 30 : 180;
+      const lockDays = Number(programType) === 0 ? 30 : Number(programType) === 1 ? 180 : 360;
       const endTime = Number(startTime) + lockDays * 86400;
 
       if (isActive) {
@@ -107,7 +107,7 @@ router.get("/dashboard/:address", async (req: Request, res: Response) => {
       formattedStakes.push({
         index: i,
         amount: ethers.formatUnits(amount, 6),
-        programType: Number(programType) === 0 ? "SHORT" : "LONG",
+        programType: Number(programType) === 0 ? "EASY_START" : Number(programType) === 1 ? "SHORT" : "LONG",
         startTime: Number(startTime),
         endTime,
         active: Boolean(isActive),
@@ -183,6 +183,7 @@ router.get("/history/:address", async (req: Request, res: Response) => {
     const [
       stakeEvents,
       unstakeEvents,
+      unstakePenaltyEvents,
       withdrawEvents,
       vestingAddedEvents,
       vestingReleasedEvents,
@@ -197,6 +198,11 @@ router.get("/history/:address", async (req: Request, res: Response) => {
       ).catch(() => []),
       stakingVault.queryFilter(
         stakingVault.filters.Unstaked(normalizedAddr),
+        fromBlock,
+        toBlock
+      ).catch(() => []),
+      stakingVault.queryFilter(
+        stakingVault.filters.UnstakedWithPenalty(normalizedAddr),
         fromBlock,
         toBlock
       ).catch(() => []),
@@ -236,6 +242,7 @@ router.get("/history/:address", async (req: Request, res: Response) => {
     const allEvents = [
       ...stakeEvents.map((ev) => ({ ev, type: "STAKE" as const })),
       ...unstakeEvents.map((ev) => ({ ev, type: "UNSTAKE" as const })),
+      ...unstakePenaltyEvents.map((ev) => ({ ev, type: "UNSTAKE_PENALTY" as const })),
       ...withdrawEvents.map((ev) => ({ ev, type: "WITHDRAWAL" as const })),
       ...vestingAddedEvents.map((ev) => ({ ev, type: "VESTING_ADDED" as const })),
       ...vestingReleasedEvents.map((ev) => ({ ev, type: "VESTING_RELEASED" as const })),
@@ -295,7 +302,7 @@ router.get("/history/:address", async (req: Request, res: Response) => {
             ...base,
             data: {
               amount: ethers.formatUnits(log.args[1], 6),
-              programType: Number(log.args[2]) === 0 ? "SHORT" : "LONG",
+              programType: Number(log.args[2]) === 0 ? "EASY_START" : Number(log.args[2]) === 1 ? "SHORT" : "LONG",
               stakeIndex: Number(log.args[3]),
             },
           });
@@ -304,9 +311,19 @@ router.get("/history/:address", async (req: Request, res: Response) => {
           history.push({
             ...base,
             data: {
-              stakeIndex: Number(log.args[1]),
-              amount: ethers.formatUnits(log.args[2], 6),
-              penalty: ethers.formatUnits(log.args[3], 6),
+              principal: ethers.formatUnits(log.args[1], 6),
+              stakeIndex: Number(log.args[2]),
+            },
+          });
+          break;
+        case "UNSTAKE_PENALTY":
+          history.push({
+            ...base,
+            type: "UNSTAKE",
+            data: {
+              returned: ethers.formatUnits(log.args[1], 6),
+              penalty: ethers.formatUnits(log.args[2], 6),
+              stakeIndex: Number(log.args[3]),
             },
           });
           break;

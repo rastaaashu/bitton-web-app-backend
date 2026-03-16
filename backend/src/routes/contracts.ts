@@ -46,7 +46,7 @@ router.get("/stakes/:address", async (req: Request, res: Response) => {
       const lastRewardTime = s.lastRewardTime ?? s[3];
       const active = s.active ?? s[4];
 
-      const lockDays = Number(programType) === 0 ? 30 : 180;
+      const lockDays = Number(programType) === 0 ? 30 : Number(programType) === 1 ? 180 : 360;
       const endTime = Number(startTime) + lockDays * 86400;
 
       let pendingReward = BigInt(0);
@@ -62,7 +62,7 @@ router.get("/stakes/:address", async (req: Request, res: Response) => {
         index: i,
         amount: ethers.formatUnits(amount, 6),
         amountRaw: amount.toString(),
-        programType: Number(programType) === 0 ? "SHORT" : "LONG",
+        programType: Number(programType) === 0 ? "EASY_START" : Number(programType) === 1 ? "SHORT" : "LONG",
         programTypeId: Number(programType),
         startTime: Number(startTime),
         endTime,

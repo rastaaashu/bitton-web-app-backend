@@ -9,6 +9,7 @@ import { API_BASE_URL } from "@/config/constants";
 import { InAppBrowserBanner } from "@/components/auth/InAppBrowserBanner";
 import { GatedConnectButton } from "@/components/auth/GatedConnectButton";
 import { LanguageSelector } from "@/components/ui/LanguageSelector";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 type AuthTab = "wallet" | "email" | "telegram";
 
@@ -36,6 +37,7 @@ function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated, isLoading } = useAuth();
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<AuthTab>("wallet");
   const [agreed, setAgreed] = useState(false);
 
@@ -109,11 +111,11 @@ function RegisterContent() {
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 sm:p-8 max-w-md w-full">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold">Create Account</h2>
+          <h2 className="text-2xl font-bold">{t("auth.createAccount")}</h2>
           <LanguageSelector />
         </div>
         <p className="text-gray-400 text-sm text-center mb-6">
-          Register to start using BitTON.AI
+          {t("auth.register")}
         </p>
 
         {/* Referral Code Input */}
@@ -205,9 +207,9 @@ function RegisterContent() {
         </div>
 
         <p className="text-center text-sm text-gray-500 mt-4">
-          Already have an account?{" "}
+          {t("auth.haveAccount")}{" "}
           <Link href="/login" className="text-brand-400 hover:text-brand-300 underline">
-            Login
+            {t("auth.login")}
           </Link>
         </p>
       </div>

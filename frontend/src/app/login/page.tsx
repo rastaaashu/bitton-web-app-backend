@@ -9,12 +9,14 @@ import { API_BASE_URL } from "@/config/constants";
 import { InAppBrowserBanner } from "@/components/auth/InAppBrowserBanner";
 import { GatedConnectButton } from "@/components/auth/GatedConnectButton";
 import { LanguageSelector } from "@/components/ui/LanguageSelector";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 type AuthTab = "wallet" | "email" | "telegram";
 
 export default function LoginPage() {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<AuthTab>("wallet");
   const [agreed, setAgreed] = useState(false);
 
@@ -22,21 +24,21 @@ export default function LoginPage() {
     if (isAuthenticated) router.replace("/dashboard");
   }, [isAuthenticated, router]);
 
-  const tabs: { key: AuthTab; label: string }[] = [
-    { key: "wallet", label: "EVM Wallet" },
-    { key: "email", label: "Email" },
-    { key: "telegram", label: "Telegram" },
+  const tabs: { key: AuthTab; tKey: string }[] = [
+    { key: "wallet", tKey: "auth.evmWallet" },
+    { key: "email", tKey: "auth.email" },
+    { key: "telegram", tKey: "auth.telegram" },
   ];
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 sm:p-8 max-w-md w-full">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold">Welcome to BitTON.AI</h2>
+          <h2 className="text-2xl font-bold">{t("auth.welcome")}</h2>
           <LanguageSelector />
         </div>
         <p className="text-gray-400 text-sm text-center mb-6">
-          Sign in to your account
+          {t("auth.signIn")}
         </p>
 
         {/* Tabs */}
@@ -52,7 +54,7 @@ export default function LoginPage() {
                   : "text-gray-500 hover:text-gray-300"
               }`}
             >
-              {tab.label}
+              {t(tab.tKey)}
             </button>
           ))}
         </div>
@@ -80,9 +82,9 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-sm text-gray-500 mt-4">
-          Don&apos;t have an account?{" "}
+          {t("auth.noAccount")}{" "}
           <Link href="/register" className="text-brand-400 hover:text-brand-300 underline">
-            Register
+            {t("auth.createAccount")}
           </Link>
         </p>
       </div>

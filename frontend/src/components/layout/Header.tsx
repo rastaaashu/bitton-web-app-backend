@@ -6,6 +6,7 @@ import { useAccount, useChainId, useSwitchChain } from "wagmi";
 import { BASE_SEPOLIA_CHAIN_ID } from "@/config/constants";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { LanguageSelector } from "@/components/ui/LanguageSelector";
 import { truncateAddress } from "@/lib/format";
 
@@ -15,6 +16,7 @@ export function Header() {
   const { switchChain } = useSwitchChain();
   const { user, isAuthenticated, logout } = useAuth();
   const { currency, toggleCurrency } = useCurrency();
+  const { t } = useLanguage();
   const router = useRouter();
   const isWrongNetwork = isConnected && chainId !== BASE_SEPOLIA_CHAIN_ID;
 
@@ -68,7 +70,7 @@ export function Header() {
                 onClick={handleLogout}
                 className="text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 px-2 sm:px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap touch-manipulation"
               >
-                Logout
+                {t("auth.logout")}
               </button>
             </div>
           )}

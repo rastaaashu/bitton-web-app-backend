@@ -13,6 +13,7 @@ import {
 } from "@/hooks/useContracts";
 import { tierName, formatDate, formatCountdown } from "@/lib/format";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { PROGRAM_CONFIGS } from "@/config/constants";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -28,6 +29,7 @@ export default function DashboardPage() {
   const { data: pendingRewards, isLoading: rewardsLoading } = usePendingRewards();
   const { data: stakesRaw, isLoading: stakesLoading } = useStakes();
   const { formatAmount, label: currLabel } = useCurrency();
+  const { t } = useLanguage();
   const [now, setNow] = useState(Math.floor(Date.now() / 1000));
 
   const stakes = (stakesRaw as StakeInfo[] | undefined) || [];
@@ -78,10 +80,9 @@ export default function DashboardPage() {
   if (!isConnected) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-        <h2 className="text-2xl font-bold mb-4">Welcome to BitTON.AI</h2>
+        <h2 className="text-2xl font-bold mb-4">{t("auth.welcome")}</h2>
         <p className="text-gray-400 mb-6 max-w-md">
-          Connect your wallet to access your dashboard, stake BTN tokens, and
-          earn rewards.
+          {t("common.connectWalletPrompt")}
         </p>
         <p className="text-sm text-gray-500">
           Use the Connect button in the top right corner.
@@ -92,7 +93,7 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6">Dashboard</h2>
+      <h2 className="text-2xl font-bold mb-6">{t("dashboard.title")}</h2>
 
       {/* Vault Status Banner */}
       {!vaultLoading && !isActive && (
@@ -115,24 +116,24 @@ export default function DashboardPage() {
       {/* Balance Zone Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
-          label="Wallet Balance"
+          label={t("dashboard.walletBalance")}
           value={`${formatAmount(btnBalance as bigint | undefined)} ${currLabel}`}
           loading={btnLoading}
         />
         <StatCard
-          label="Total Staked"
+          label={t("dashboard.totalStaked")}
           value={`${formatAmount(totalStaked as bigint | undefined)} ${currLabel}`}
           loading={stakedLoading}
           subtitle={`${activeStakes.length} active stake(s)`}
         />
         <StatCard
-          label="Vesting Locked"
+          label={t("dashboard.vestingLocked")}
           value={`${formatAmount(vestedBalance)} ${currLabel}`}
           loading={vestingLoading}
           subtitle={`${formatAmount(pendingRelease)} releasable`}
         />
         <StatCard
-          label="Withdrawable"
+          label={t("dashboard.withdrawable")}
           value={`${formatAmount(withdrawable as bigint | undefined)} ${currLabel}`}
           loading={withdrawLoading}
         />
@@ -140,7 +141,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
-          label="Vault Tier"
+          label={t("dashboard.vaultTier")}
           value={tierName(tier)}
           loading={vaultLoading}
           valueClassName={
@@ -154,14 +155,14 @@ export default function DashboardPage() {
           }
         />
         <StatCard
-          label="Pending Rewards"
+          label={t("dashboard.pendingRewards")}
           value={`${formatAmount(pendingRewards as bigint | undefined)} ${currLabel}`}
           loading={rewardsLoading}
         />
       </div>
 
       {/* Active Stakes Table */}
-      <h3 className="text-lg font-bold mb-4">Active Stakes</h3>
+      <h3 className="text-lg font-bold mb-4">{t("dashboard.activeStakes")}</h3>
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
         {stakesLoading ? (
           <div className="p-6">

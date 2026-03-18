@@ -6,3 +6,4 @@ typechain-types/
 .env
 deliverables.zip
 deliverables/**/bitton-*.zip
+frontend/.git-webapp/

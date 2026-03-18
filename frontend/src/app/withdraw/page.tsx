@@ -7,6 +7,7 @@ import { TxButton } from "@/components/ui/TxButton";
 import { useWithdrawableBalance, useWithdrawableInUSDC } from "@/hooks/useContracts";
 import { useWithdrawAsBTN, useWithdrawAsUSDC } from "@/hooks/useContractWrite";
 import { formatBTN, parseBTN } from "@/lib/format";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { BTN_PRICE_USD } from "@/config/constants";
 
 export default function WithdrawPage() {
@@ -17,6 +18,7 @@ export default function WithdrawPage() {
     refetch,
   } = useWithdrawableBalance();
   const { data: withdrawableUSDC } = useWithdrawableInUSDC();
+  const { formatAmount, label: currLabel } = useCurrency();
   const withdrawBTNHook = useWithdrawAsBTN();
   const withdrawUSDCHook = useWithdrawAsUSDC();
 
@@ -59,12 +61,12 @@ export default function WithdrawPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 max-w-lg">
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <p className="text-sm text-gray-400 mb-1">Balance (BTN)</p>
+          <p className="text-sm text-gray-400 mb-1">Balance ({currLabel})</p>
           {isLoading ? (
             <div className="h-8 w-32 bg-gray-800 rounded animate-pulse" />
           ) : (
             <p className="text-2xl font-semibold">
-              {formatBTN(balance)} <span className="text-gray-500">BTN</span>
+              {formatAmount(balance)} <span className="text-gray-500">{currLabel}</span>
             </p>
           )}
         </div>
@@ -74,7 +76,7 @@ export default function WithdrawPage() {
             <div className="h-8 w-32 bg-gray-800 rounded animate-pulse" />
           ) : (
             <p className="text-2xl font-semibold">
-              {formatBTN(balanceUSDC)} <span className="text-gray-500">USDC</span>
+              {formatAmount(balanceUSDC)} <span className="text-gray-500">USDC</span>
             </p>
           )}
           <p className="text-xs text-gray-500 mt-1">@ ${BTN_PRICE_USD}/BTN</p>

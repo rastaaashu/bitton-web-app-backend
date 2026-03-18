@@ -5,6 +5,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useChainId, useSwitchChain } from "wagmi";
 import { BASE_SEPOLIA_CHAIN_ID } from "@/config/constants";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { truncateAddress } from "@/lib/format";
 
 export function Header() {
@@ -12,6 +13,7 @@ export function Header() {
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
   const { user, isAuthenticated, logout } = useAuth();
+  const { currency, toggleCurrency } = useCurrency();
   const router = useRouter();
   const isWrongNetwork = isConnected && chainId !== BASE_SEPOLIA_CHAIN_ID;
 
@@ -52,6 +54,15 @@ export function Header() {
                   {truncateAddress(user.evmAddress)}
                 </span>
               )}
+              <button
+                onClick={toggleCurrency}
+                className="text-xs font-medium bg-gray-800 hover:bg-gray-700 px-2 sm:px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap touch-manipulation border border-gray-700"
+                title="Toggle currency display"
+              >
+                <span className={currency === "BTN" ? "text-brand-400" : "text-gray-500"}>BTN</span>
+                <span className="text-gray-600 mx-0.5">/</span>
+                <span className={currency === "USD" ? "text-green-400" : "text-gray-500"}>USD</span>
+              </button>
               <button
                 onClick={handleLogout}
                 className="text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 px-2 sm:px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap touch-manipulation"

@@ -11,7 +11,8 @@ import {
   usePendingRewards,
   useStakes,
 } from "@/hooks/useContracts";
-import { formatBTN, tierName, formatDate, formatCountdown } from "@/lib/format";
+import { tierName, formatDate, formatCountdown } from "@/lib/format";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { PROGRAM_CONFIGS } from "@/config/constants";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -26,6 +27,7 @@ export default function DashboardPage() {
   const { vestedBalance, pendingRelease, isLoading: vestingLoading } = useVestedBalance();
   const { data: pendingRewards, isLoading: rewardsLoading } = usePendingRewards();
   const { data: stakesRaw, isLoading: stakesLoading } = useStakes();
+  const { formatAmount, label: currLabel } = useCurrency();
   const [now, setNow] = useState(Math.floor(Date.now() / 1000));
 
   const stakes = (stakesRaw as StakeInfo[] | undefined) || [];
@@ -114,24 +116,24 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
           label="Wallet Balance"
-          value={`${formatBTN(btnBalance as bigint | undefined)} BTN`}
+          value={`${formatAmount(btnBalance as bigint | undefined)} ${currLabel}`}
           loading={btnLoading}
         />
         <StatCard
           label="Total Staked"
-          value={`${formatBTN(totalStaked as bigint | undefined)} BTN`}
+          value={`${formatAmount(totalStaked as bigint | undefined)} ${currLabel}`}
           loading={stakedLoading}
           subtitle={`${activeStakes.length} active stake(s)`}
         />
         <StatCard
           label="Vesting Locked"
-          value={`${formatBTN(vestedBalance)} BTN`}
+          value={`${formatAmount(vestedBalance)} ${currLabel}`}
           loading={vestingLoading}
-          subtitle={`${formatBTN(pendingRelease)} releasable`}
+          subtitle={`${formatAmount(pendingRelease)} releasable`}
         />
         <StatCard
           label="Withdrawable"
-          value={`${formatBTN(withdrawable as bigint | undefined)} BTN`}
+          value={`${formatAmount(withdrawable as bigint | undefined)} ${currLabel}`}
           loading={withdrawLoading}
         />
       </div>
@@ -153,7 +155,7 @@ export default function DashboardPage() {
         />
         <StatCard
           label="Pending Rewards"
-          value={`${formatBTN(pendingRewards as bigint | undefined)} BTN`}
+          value={`${formatAmount(pendingRewards as bigint | undefined)} ${currLabel}`}
           loading={rewardsLoading}
         />
       </div>
@@ -220,7 +222,7 @@ export default function DashboardPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 font-medium">
-                      {formatBTN(stake.amount)} BTN
+                      {formatAmount(stake.amount)} {currLabel}
                     </td>
                     <td className="px-4 py-3 text-gray-400">
                       {formatDate(stake.startTime)}

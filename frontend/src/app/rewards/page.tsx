@@ -13,7 +13,8 @@ import {
   useVaultStatus,
 } from "@/hooks/useContracts";
 import { useSettleRewards } from "@/hooks/useContractWrite";
-import { formatBTN, formatDate } from "@/lib/format";
+import { formatDate } from "@/lib/format";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { SETTLEMENT_WITHDRAWABLE_PCT, SETTLEMENT_VESTING_PCT } from "@/config/constants";
 
 export default function RewardsPage() {
@@ -25,6 +26,7 @@ export default function RewardsPage() {
   const { refetch: refetchWithdrawable } = useWithdrawableBalance();
   const { refetch: refetchVesting } = useVestedBalance();
 
+  const { formatAmount, label: currLabel } = useCurrency();
   const settleHook = useSettleRewards();
 
   useEffect(() => {
@@ -66,7 +68,7 @@ export default function RewardsPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <StatCard
           label="Pending Rewards"
-          value={`${formatBTN(pendingRewards as bigint | undefined)} BTN`}
+          value={`${formatAmount(pendingRewards as bigint | undefined)} ${currLabel}`}
           loading={pendingLoading}
           valueClassName={hasPending ? "text-green-400" : undefined}
         />
@@ -77,7 +79,7 @@ export default function RewardsPage() {
         />
         <StatCard
           label="Reward Pool Balance"
-          value={`${formatBTN(rewardPool as bigint | undefined)} BTN`}
+          value={`${formatAmount(rewardPool as bigint | undefined)} ${currLabel}`}
           loading={poolLoading}
           subtitle="System-wide funded balance"
         />
@@ -90,7 +92,7 @@ export default function RewardsPage() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-400">Total Pending</span>
-              <span className="font-medium">{formatBTN(pending)} BTN</span>
+              <span className="font-medium">{formatAmount(pending)} {currLabel}</span>
             </div>
             <div className="h-px bg-gray-800" />
             <div className="flex justify-between">
@@ -98,7 +100,7 @@ export default function RewardsPage() {
                 To Withdrawal Wallet ({SETTLEMENT_WITHDRAWABLE_PCT}%)
               </span>
               <span className="text-green-400">
-                +{formatBTN(withdrawablePortion)} BTN
+                +{formatAmount(withdrawablePortion)} {currLabel}
               </span>
             </div>
             <div className="flex justify-between">
@@ -106,7 +108,7 @@ export default function RewardsPage() {
                 To Vesting Pool ({SETTLEMENT_VESTING_PCT}%)
               </span>
               <span className="text-blue-400">
-                +{formatBTN(vestingPortion)} BTN
+                +{formatAmount(vestingPortion)} {currLabel}
               </span>
             </div>
           </div>

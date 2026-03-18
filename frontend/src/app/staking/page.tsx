@@ -13,6 +13,7 @@ import {
 } from "@/hooks/useContracts";
 import { useApproveToken, useStakeUSDC, useUnstake } from "@/hooks/useContractWrite";
 import { formatBTN, parseBTN, formatDate, formatCountdown, tierName } from "@/lib/format";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { TxButton } from "@/components/ui/TxButton";
 import { Modal } from "@/components/ui/Modal";
 import type { StakeInfo } from "@/types";
@@ -22,6 +23,7 @@ export default function StakingPage() {
   const { data: usdcBalance } = useUSDCBalance();
   const { isActive, tier } = useVaultStatus();
   const { data: stakesRaw, isLoading: stakesLoading, refetch: refetchStakes } = useStakes();
+  const { formatAmount, label: currLabel } = useCurrency();
   const stakes = (stakesRaw as StakeInfo[] | undefined) || [];
 
   const [amount, setAmount] = useState("");
@@ -400,7 +402,7 @@ export default function StakingPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 font-medium">
-                      {formatBTN(stake.amount)} {tokenLabel}
+                      {stake.isUSDC ? formatBTN(stake.amount) : formatAmount(stake.amount)} {stake.isUSDC ? "USDC" : currLabel}
                     </td>
                     <td className="px-4 py-3 text-gray-400">
                       {formatDate(stake.startTime)}
@@ -478,7 +480,7 @@ export default function StakingPage() {
                   <div className="bg-gray-800 rounded-lg p-3 space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-400">Stake Amount</span>
-                      <span>{formatBTN(s.amount)} {tokenLabel}</span>
+                      <span>{s.isUSDC ? formatBTN(s.amount) : formatAmount(s.amount)} {s.isUSDC ? "USDC" : currLabel}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400">Product</span>
@@ -492,7 +494,7 @@ export default function StakingPage() {
                       <div className="flex justify-between text-yellow-400">
                         <span>Early Exit Penalty (15%)</span>
                         <span>
-                          -{formatBTN((s.amount * 15n) / 100n)} {tokenLabel}
+                          -{s.isUSDC ? formatBTN((s.amount * 15n) / 100n) : formatAmount((s.amount * 15n) / 100n)} {s.isUSDC ? "USDC" : currLabel}
                         </span>
                       </div>
                     )}

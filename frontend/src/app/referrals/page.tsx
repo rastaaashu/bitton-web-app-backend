@@ -12,7 +12,8 @@ import {
   useIsQualified,
 } from "@/hooks/useContracts";
 import { useRegisterReferrer } from "@/hooks/useContractWrite";
-import { truncateAddress, tierName, formatBTN } from "@/lib/format";
+import { truncateAddress, tierName } from "@/lib/format";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { TIER_CONFIGS, MATCHING_LEVELS, MIN_PERSONAL_STAKE } from "@/config/constants";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
@@ -26,6 +27,7 @@ export default function ReferralsPage() {
 }
 
 function ReferralsContent() {
+  const { formatAmount, label: currLabel } = useCurrency();
   const { isConnected, address } = useAccount();
   const searchParams = useSearchParams();
   const refFromUrl = searchParams.get("ref") || "";
@@ -176,7 +178,7 @@ function ReferralsContent() {
         />
         <StatCard
           label="Personal Staked"
-          value={`${formatBTN(totalStaked as bigint | undefined)} BTN`}
+          value={`${formatAmount(totalStaked as bigint | undefined)} ${currLabel}`}
           subtitle={
             (totalStaked as bigint | undefined) &&
             (totalStaked as bigint) >= MIN_PERSONAL_STAKE

@@ -6,7 +6,7 @@ import { StatCard } from "@/components/ui/StatCard";
 import { TxButton } from "@/components/ui/TxButton";
 import { useVestedBalance } from "@/hooks/useContracts";
 import { useReleaseVesting } from "@/hooks/useContractWrite";
-import { formatBTN } from "@/lib/format";
+import { useCurrency } from "@/contexts/CurrencyContext";
 
 export default function VestingPage() {
   const { isConnected, address } = useAccount();
@@ -17,6 +17,7 @@ export default function VestingPage() {
     isLoading,
     refetch,
   } = useVestedBalance();
+  const { formatAmount, label: currLabel } = useCurrency();
   const releaseHook = useReleaseVesting();
 
   useEffect(() => {
@@ -47,12 +48,12 @@ export default function VestingPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         <StatCard
           label="Total Vested (Locked)"
-          value={`${formatBTN(vestedBalance)} BTN`}
+          value={`${formatAmount(vestedBalance)} ${currLabel}`}
           loading={isLoading}
         />
         <StatCard
           label="Available to Release"
-          value={`${formatBTN(pendingRelease)} BTN`}
+          value={`${formatAmount(pendingRelease)} ${currLabel}`}
           loading={isLoading}
           valueClassName={hasReleasable ? "text-green-400" : undefined}
         />
@@ -95,8 +96,8 @@ export default function VestingPage() {
             />
           </div>
           <div className="flex justify-between text-xs text-gray-500">
-            <span>{formatBTN(pendingRelease)} available</span>
-            <span>{formatBTN(vestedBalance)} locked</span>
+            <span>{formatAmount(pendingRelease)} available</span>
+            <span>{formatAmount(vestedBalance)} locked</span>
           </div>
         </div>
       )}

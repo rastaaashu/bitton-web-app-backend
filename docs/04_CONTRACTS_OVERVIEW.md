@@ -1,44 +1,51 @@
-# BitTON.AI -- Smart Contracts Overview
+# BitTON.AI -- Smart Contracts Overview (V2)
 
-## Product Parameters
+## Staking Products
 
 | Parameter | Flex 30 | Boost 180 | Max 360 |
 |-----------|---------|-----------|---------|
+| Product type | 0 | 1 | 2 |
 | Lock period | 30 days | 180 days | 360 days |
 | Staking token | USDC | USDC | USDC |
-| Approx yield | ~7.5% per cycle | ~1% per day | ~250% APR |
+| Daily rate | 0.25% | 1.0% | 0.69% |
 | Reward split (Liquid / Vested) | 50% / 50% | 20% / 80% | 15% / 85% |
-| Principal returned | Yes | No | No |
+| Principal returned | Yes | No (to treasury) | No (to treasury) |
+| Early exit | Allowed (15% penalty to ReserveFund) | Not allowed | Not allowed |
 | Vesting type | Short (30d freeze + 60d linear) | Long (180d freeze + 180d linear) | Long (180d freeze + 180d linear) |
+
+## Deployed Contracts (Base Sepolia -- V2)
+
+| Contract | Address | Type |
+|----------|---------|------|
+| BTN Token | `0x5b964baafEDf002e5364F37848DCa1908D3e4e9f` | ERC-20 |
+| USDC Token | `0x69Bc9E30366888385f68cBB566EEb655CD5A34CC` | ERC-20 (mock) |
+| VaultManager | `0xC5Ab43f26C1BacA8137cf4E4e1Ba98933D30C553` | UUPS Proxy |
+| StakingVault | `0xf246C58FB64dAf6DA751Ea7d2c8db7d38E7a6C4B` | UUPS Proxy |
+| RewardEngine | `0x97d1d86c709F4d5aEb93f46A60A16941c03076c0` | UUPS Proxy |
+| VestingPool | `0x79D2CA5fb7ACF936198ec823a006a34cB611389e` | UUPS Proxy |
+| WithdrawalWallet | `0xa523b6B9c3F2191C02ACfEc92C319D66315a3768` | UUPS Proxy |
+| BonusEngine | `0x20189fFfa3B42B7D32b88376681D9c0Fec4A1eDC` | UUPS Proxy |
+| ReserveFund | `0x8B7917daff5695461CFFDdCF5AA3dC7cC310793D` | UUPS Proxy |
 
 ## Contracts
 
-### BTNToken (Legacy, non-upgradeable)
+### BTNToken (Non-upgradeable)
 - ERC-20 with 21M max supply, 6 decimals
 - Minter management, burning, EIP-2612 permit
 - Deployed and immutable
 
-### CustodialDistribution (Non-upgradeable)
-- Holds BTN treasury
-- `distribute(to, amount)` -- send BTN to user
-- `batchMigrate(recipients[], amounts[])` -- bulk migration
-- `fundContract(target, amount)` -- fund other contracts (e.g., RewardEngine)
-- `finalize()` -- permanently renounce all admin roles
-- AccessControl: OPERATOR_ROLE, EMERGENCY_ROLE, DEFAULT_ADMIN_ROLE
-
 ### VaultManager (UUPS Proxy)
-- Users activate a vault tier (T1/T2/T3) by paying USDT or BTN
+- Users activate a vault tier (T1/T2/T3) by paying USDC or BTN
 - `activateVault(tier)` -- pays fee, activates vault
 - `isVaultActive(user)` / `getUserTier(user)`
-- Uses Chainlink oracle for BTN/USD price (1h staleness check)
 - BTN conversion uses $2.25 platform price
-- Fees: T1=$50, T2=$250, T3=$1000
+- Fees: T1=$25, T2=$50, T3=$100
 
 ### StakingVault (UUPS Proxy)
 - Supports 3 staking products: Flex30 (type 0), Boost180 (type 1), Max360 (type 2)
-- `stake(amount, productType)` -- deposits USDC (or BTN when enabled) into the selected product
-- `unstake(stakeIndex)` -- withdraws stake; Flex30 returns principal at maturity, Boost180/Max360 enforce full lock
-- Per-product reward rates applied during settlement
+- `stake(amount, productType)` -- deposits USDC into the selected product
+- `unstake(stakeIndex)` -- Flex30 allows early exit with 15% penalty to ReserveFund; Boost180/Max360 enforce full lock
+- Per-product reward rates: 0.25%/day (Flex30), 1.0%/day (Boost180), 0.69%/day (Max360)
 - Tracks `btnEquivalent` for each USDC stake (converted at platform price $2.25) for bonus calculations
 - Requires active vault for staking
 - BTN staking is gated and reserved for future activation; currently USDC only
@@ -51,7 +58,6 @@
   - Max 360: 15% liquid, 85% vested
 - Liquid portion routed to WithdrawalWallet
 - Vested portion routed to VestingPool with appropriate vesting schedule
-- Compounding boost: users who restake liquid rewards receive a bonus multiplier
 - `fundRewards(amount)` -- owner funds BTN into reward pool
 - Calls BonusEngine for matching bonuses on settlement
 
@@ -71,19 +77,18 @@
 - `withdrawBTN(amount)` -- user withdraws BTN directly
 - `withdrawUSDC(amount)` -- converts BTN balance to USDC at platform price ($2.25) and sends USDC
 - `getWithdrawableBalance(user)` -- returns balance in BTN terms
-- Weekly withdrawal cap enforced, resets every 7 days
 
 ### BonusEngine (UUPS Proxy)
 - `registerReferrer(referrer)` -- one-time per user
 - `processDirectBonus(referrer, stakeAmount)` -- 5% of stake (in BTN equivalent)
 - `processMatchingBonus(user, rewardAmount)` -- level-based percentage of downline rewards
+- Matching percentages: L1=10%, L2=7%, L3=5%, L4=4%, L5=3%, L6=2%, L7=2%, L8=1%, L9=1%, L10=1%
 - Qualification: active vault + 500 BTN minimum personal stake
-- Matching depth: T1 = 3 levels, T2 = 5 levels, T3 = 10 levels
+- Matching depth: T1=3 levels, T2=5 levels, T3=10 levels
 - Bonuses credited to WithdrawalWallet
 
 ### ReserveFund (UUPS Proxy)
-- Replaces the previous burn mechanism
-- Receives: early unstake penalties, early vesting unlock penalties, protocol fees
+- Receives: early unstake penalties (Flex 30), early vesting unlock penalties, protocol fees
 - `deposit(amount)` -- called by other contracts to route funds
 - `withdraw(to, amount)` -- admin-only, for redeploying reserves
 - Holds BTN (and optionally USDC) as protocol reserves
@@ -106,7 +111,7 @@ StakingVault ──> RewardEngine ──> VestingPool
                   BonusEngine    WithdrawalWallet
                        |               ^
                        v               |
-                  WithdrawalWallet     ReserveFund
+                  WithdrawalWallet    ReserveFund
 ```
 
 OPERATOR_ROLE grants required:
@@ -122,9 +127,5 @@ OPERATOR_ROLE grants required:
 
 ## Test Coverage
 
-- 77 tests passing (rewritten for new 3-product system)
+- 77 tests passing (V2 3-product USDC staking system)
 - Covers: product-specific staking, per-product reward splits, freeze+linear vesting, dual-token withdrawal, reserve fund flows, bonus engine, access control
-
-## Deployed Addresses
-
-See `DEPLOYMENT_SUMMARY_TESTNET.md` for Base Sepolia addresses.

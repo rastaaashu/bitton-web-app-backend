@@ -233,11 +233,16 @@ export default function StakingPage() {
             )}
           </div>
 
+          {/* Balance / amount validation */}
+          {parsedAmount > 0n && (usdcBalance as bigint || 0n) > 0n && parsedAmount > (usdcBalance as bigint || 0n) && (
+            <p className="text-xs text-red-400 mb-2">Amount exceeds your USDC balance.</p>
+          )}
+
           {/* Action Buttons */}
           {step === "idle" && (
             <button
               onClick={handleStartStake}
-              disabled={!isActive || parsedAmount <= 0n || isSubmitting}
+              disabled={!isActive || parsedAmount <= 0n || isSubmitting || parsedAmount > (usdcBalance as bigint || 0n)}
               className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2.5 rounded-lg font-medium transition-colors"
             >
               Stake USDC into {config.name}
@@ -291,6 +296,13 @@ export default function StakingPage() {
               successLabel="Staked!"
               className="w-full"
             />
+          )}
+
+          {/* Error display */}
+          {(approveHook.error || stakeHook.error) && (
+            <p className="text-xs text-red-400 mt-2">
+              {(approveHook.error as any)?.shortMessage || (stakeHook.error as any)?.shortMessage || "Transaction failed. Please check your vault is active and you have enough USDC."}
+            </p>
           )}
 
           {step !== "idle" && (

@@ -215,11 +215,9 @@ function WalletLogin({ agreed }: { agreed: boolean }) {
 // Email Login
 // ══════════════════════════════════════
 function EmailLogin({ agreed }: { agreed: boolean }) {
-  const { isConnected, address } = useAccount();
-  const { signMessageAsync } = useSignMessage();
   const { login } = useAuth();
   const router = useRouter();
-  const [step, setStep] = useState<"email" | "otp" | "wallet">("email");
+  const [step, setStep] = useState<"email" | "otp">("email");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [sessionId, setSessionId] = useState("");
@@ -258,17 +256,31 @@ function EmailLogin({ agreed }: { agreed: boolean }) {
     setError("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
+      // First verify OTP
+      const verifyRes = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId, otp }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Invalid code");
+      const verifyData = await verifyRes.json();
+      if (!verifyRes.ok) {
+        setError(verifyData.error || "Invalid code");
         return;
       }
-      setStep("wallet");
+
+      // Then login directly (no wallet needed)
+      const res = await fetch(`${API_BASE_URL}/auth/login/email/direct`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Login failed");
+        return;
+      }
+      login(data.accessToken, data.refreshToken, data.user);
+      router.replace("/dashboard");
     } catch {
       setError("Unable to connect to server.");
     } finally {
@@ -298,45 +310,12 @@ function EmailLogin({ agreed }: { agreed: boolean }) {
     }
   };
 
-  const handleComplete = async () => {
-    if (!address || !agreed) return;
-    setLoading(true);
-    setError("");
-
-    try {
-      const timestamp = new Date().toISOString();
-      const message = `Sign this message to authenticate with BitTON.AI\n\nEmail: ${email}\nAddress: ${address}\nTimestamp: ${timestamp}`;
-      const signature = await signMessageAsync({ message });
-
-      const res = await fetch(`${API_BASE_URL}/auth/login/email/complete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, address, signature, message }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Login failed");
-        return;
-      }
-      login(data.accessToken, data.refreshToken, data.user);
-      router.replace("/dashboard");
-    } catch (err: any) {
-      if (err?.message?.includes("User rejected")) {
-        setError("Signature rejected.");
-      } else {
-        setError("Unable to connect to server.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="space-y-4">
       {/* Step indicator */}
       <div className="flex items-center justify-center gap-2 mb-2">
-        {["Email", "Verify", "Wallet"].map((label, i) => {
-          const currentIndex = step === "email" ? 0 : step === "otp" ? 1 : 2;
+        {["Email", "Verify"].map((label, i) => {
+          const currentIndex = step === "email" ? 0 : 1;
           return (
             <div key={label} className="flex items-center gap-2">
               <div
@@ -349,7 +328,7 @@ function EmailLogin({ agreed }: { agreed: boolean }) {
               <span className={`text-xs ${i <= currentIndex ? "text-white" : "text-gray-500"}`}>
                 {label}
               </span>
-              {i < 2 && <div className="w-6 h-px bg-gray-700" />}
+              {i < 1 && <div className="w-6 h-px bg-gray-700" />}
             </div>
           );
         })}
@@ -403,7 +382,7 @@ function EmailLogin({ agreed }: { agreed: boolean }) {
             disabled={loading || otp.length !== 6}
             className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed text-white py-2.5 rounded-lg font-medium"
           >
-            {loading ? "Verifying..." : "Verify Code"}
+            {loading ? "Verifying & Logging in..." : "Verify & Login"}
           </button>
           <button
             type="button"
@@ -416,23 +395,6 @@ function EmailLogin({ agreed }: { agreed: boolean }) {
         </form>
       )}
 
-      {step === "wallet" && (
-        <div className="space-y-4">
-          <p className="text-sm text-green-400">Email verified! Now connect your wallet.</p>
-          <InAppBrowserBanner />
-          <GatedConnectButton agreed={agreed} />
-          {isConnected && (
-            <button
-              onClick={handleComplete}
-              disabled={loading || !agreed}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white py-3 rounded-lg font-medium"
-            >
-              {loading ? "Signing in..." : "Sign & Login"}
-            </button>
-          )}
-        </div>
-      )}
-
       {error && <p className="text-sm text-red-400">{error}</p>}
     </div>
   );
@@ -442,12 +404,8 @@ function EmailLogin({ agreed }: { agreed: boolean }) {
 // Telegram Login
 // ══════════════════════════════════════
 function TelegramLogin({ agreed }: { agreed: boolean }) {
-  const { isConnected, address } = useAccount();
-  const { signMessageAsync } = useSignMessage();
   const { login } = useAuth();
   const router = useRouter();
-  const [step, setStep] = useState<"telegram" | "wallet">("telegram");
-  const [sessionId, setSessionId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [botUsername, setBotUsername] = useState("");
@@ -468,7 +426,8 @@ function TelegramLogin({ agreed }: { agreed: boolean }) {
     setError("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/login/telegram/init`, {
+      // Direct login — no wallet needed
+      const res = await fetch(`${API_BASE_URL}/auth/login/telegram/direct`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(telegramData),
@@ -478,17 +437,17 @@ function TelegramLogin({ agreed }: { agreed: boolean }) {
         setError(data.error || "Telegram auth failed");
         return;
       }
-      setSessionId(data.sessionId);
-      setStep("wallet");
+      login(data.accessToken, data.refreshToken, data.user);
+      router.replace("/dashboard");
     } catch {
       setError("Unable to connect to server.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [login, router]);
 
   useEffect(() => {
-    if (!botConfigured || !botUsername || step !== "telegram") return;
+    if (!botConfigured || !botUsername) return;
 
     (window as any).onTelegramAuthLogin = handleTelegramAuth;
 
@@ -508,40 +467,7 @@ function TelegramLogin({ agreed }: { agreed: boolean }) {
     return () => {
       delete (window as any).onTelegramAuthLogin;
     };
-  }, [botConfigured, botUsername, step, handleTelegramAuth]);
-
-  const handleComplete = async () => {
-    if (!address || !agreed) return;
-    setLoading(true);
-    setError("");
-
-    try {
-      const timestamp = new Date().toISOString();
-      const message = `Sign this message to authenticate with BitTON.AI\n\nAddress: ${address}\nTimestamp: ${timestamp}`;
-      const signature = await signMessageAsync({ message });
-
-      const res = await fetch(`${API_BASE_URL}/auth/login/telegram/complete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, address, signature, message }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Login failed");
-        return;
-      }
-      login(data.accessToken, data.refreshToken, data.user);
-      router.replace("/dashboard");
-    } catch (err: any) {
-      if (err?.message?.includes("User rejected")) {
-        setError("Signature rejected.");
-      } else {
-        setError("Unable to connect to server.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [botConfigured, botUsername, handleTelegramAuth]);
 
   if (!botConfigured) {
     return (
@@ -557,30 +483,16 @@ function TelegramLogin({ agreed }: { agreed: boolean }) {
 
   return (
     <div className="space-y-4">
-      {step === "telegram" && (
-        <div className="space-y-4">
-          <p className="text-sm text-gray-400">Log in with your Telegram account.</p>
-          <div id="telegram-login-container-login" className="flex justify-center" />
-          {loading && <p className="text-sm text-gray-400 text-center">Verifying...</p>}
-        </div>
-      )}
-
-      {step === "wallet" && (
-        <div className="space-y-4">
-          <p className="text-sm text-green-400">Telegram verified! Now connect your wallet.</p>
-          <InAppBrowserBanner />
-          <GatedConnectButton agreed={agreed} />
-          {isConnected && (
-            <button
-              onClick={handleComplete}
-              disabled={loading || !agreed}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white py-3 rounded-lg font-medium"
-            >
-              {loading ? "Signing in..." : "Sign & Login"}
-            </button>
-          )}
-        </div>
-      )}
+      <div className="space-y-4">
+        <p className="text-sm text-gray-400">Log in with your Telegram account.</p>
+        <div id="telegram-login-container-login" className="flex justify-center" />
+        {loading && (
+          <div className="flex items-center justify-center gap-2 py-3">
+            <div className="w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm text-gray-400">Signing in...</span>
+          </div>
+        )}
+      </div>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
     </div>

@@ -1019,6 +1019,94 @@ router.post("/login/telegram/complete", authLimiter, async (req: Request, res: R
 });
 
 // ════════════════════════════════════════
+// LOGIN: EMAIL - Direct (no wallet needed)
+// After OTP verification, log in immediately without wallet signature
+// ════════════════════════════════════════
+router.post("/login/email/direct", authLimiter, async (req: Request, res: Response) => {
+  try {
+    const { sessionId } = req.body;
+    if (!sessionId) {
+      res.status(400).json({ error: "sessionId is required" });
+      return;
+    }
+
+    const session = await prisma.pendingSession.findUnique({ where: { id: sessionId } });
+    if (!session || session.expiresAt < new Date()) {
+      res.status(400).json({ error: "Session expired. Please start over." });
+      return;
+    }
+    if (!session.verified || session.type !== "LOGIN_EMAIL") {
+      res.status(400).json({ error: "Email not verified. Please verify your OTP first." });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { email: session.email! } });
+    if (!user) {
+      res.status(404).json({ error: "Account not found" });
+      return;
+    }
+    if (user.status !== "CONFIRMED") {
+      res.status(403).json({ error: `Account not confirmed. Current status: ${user.status}` });
+      return;
+    }
+
+    await prisma.pendingSession.delete({ where: { id: sessionId } });
+    const tokens = await createSession(user.id, req);
+
+    await prisma.auditLog.create({
+      data: { actor: session.email!, action: "auth.login.email.direct", target: user.id },
+    });
+
+    res.json({ ...tokens, user: userResponse(user) });
+  } catch (err: any) {
+    logger.error("Login email direct error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ════════════════════════════════════════
+// LOGIN: TELEGRAM - Direct (no wallet needed)
+// After Telegram widget verification, log in immediately
+// ════════════════════════════════════════
+router.post("/login/telegram/direct", authLimiter, async (req: Request, res: Response) => {
+  try {
+    const parsed = loginTelegramInitSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.errors[0].message });
+      return;
+    }
+
+    const telegramData = parsed.data as TelegramLoginData;
+    if (!verifyTelegramAuth(telegramData)) {
+      res.status(401).json({ error: "Telegram authentication failed" });
+      return;
+    }
+
+    const telegramId = telegramData.id.toString();
+    const user = await prisma.user.findFirst({ where: { telegramId } });
+    if (!user) {
+      res.status(404).json({ error: "No account found for this Telegram user. Please register first." });
+      return;
+    }
+    if (user.status !== "CONFIRMED") {
+      res.status(403).json({ error: `Account not confirmed. Current status: ${user.status}` });
+      return;
+    }
+
+    const tokens = await createSession(user.id, req);
+
+    await prisma.auditLog.create({
+      data: { actor: `tg:${telegramId}`, action: "auth.login.telegram.direct", target: user.id },
+    });
+
+    res.json({ ...tokens, user: userResponse(user) });
+  } catch (err: any) {
+    logger.error("Login telegram direct error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ════════════════════════════════════════
 // UNIFIED: WALLET (auto-detect login/register)
 // Uses the existing /login/wallet/challenge for step 1
 // ════════════════════════════════════════

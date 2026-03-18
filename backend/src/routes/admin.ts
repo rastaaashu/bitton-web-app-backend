@@ -293,4 +293,47 @@ router.get("/users/:id", async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /admin/seed-bootstrap
+ * Create a bootstrap admin user + sponsor code for initial registration.
+ * Only works when no users exist in the database.
+ */
+router.post("/seed-bootstrap", async (req: Request, res: Response) => {
+  try {
+    const { address, sponsorCode } = req.body;
+    if (!address || !sponsorCode) {
+      res.status(400).json({ error: "address and sponsorCode required" });
+      return;
+    }
+
+    const existingUsers = await prisma.user.count();
+    if (existingUsers > 0) {
+      res.status(409).json({ error: "Bootstrap already done — users exist" });
+      return;
+    }
+
+    const user = await prisma.user.create({
+      data: {
+        evmAddress: address.toLowerCase(),
+        authMethod: "WALLET",
+        status: "CONFIRMED",
+      },
+    });
+
+    const sc = await prisma.sponsorCode.create({
+      data: {
+        userId: user.id,
+        code: sponsorCode,
+        maxUses: 0, // unlimited
+      },
+    });
+
+    logger.info(`Bootstrap user created: ${user.id}, sponsor code: ${sc.code}`);
+    res.status(201).json({ userId: user.id, sponsorCode: sc.code });
+  } catch (err: any) {
+    logger.error("Seed bootstrap error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

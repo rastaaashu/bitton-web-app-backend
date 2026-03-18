@@ -6,6 +6,7 @@ import { useAccount, useChainId, useSwitchChain } from "wagmi";
 import { BASE_SEPOLIA_CHAIN_ID } from "@/config/constants";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCurrency } from "@/contexts/CurrencyContext";
+import { LanguageSelector } from "@/components/ui/LanguageSelector";
 import { truncateAddress } from "@/lib/format";
 
 export function Header() {
@@ -71,6 +72,7 @@ export function Header() {
               </button>
             </div>
           )}
+          <LanguageSelector compact />
           <div className="[&_button]:touch-manipulation [&_button]:!min-h-[40px]">
             <ConnectButton
               showBalance={false}

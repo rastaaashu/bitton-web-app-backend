@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { API_BASE_URL } from "@/config/constants";
 import { InAppBrowserBanner } from "@/components/auth/InAppBrowserBanner";
 import { GatedConnectButton } from "@/components/auth/GatedConnectButton";
+import { LanguageSelector } from "@/components/ui/LanguageSelector";
 
 type AuthTab = "wallet" | "email" | "telegram";
 
@@ -107,7 +108,10 @@ function RegisterContent() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 sm:p-8 max-w-md w-full">
-        <h2 className="text-2xl font-bold mb-2 text-center">Create Account</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-bold">Create Account</h2>
+          <LanguageSelector />
+        </div>
         <p className="text-gray-400 text-sm text-center mb-6">
           Register to start using BitTON.AI
         </p>

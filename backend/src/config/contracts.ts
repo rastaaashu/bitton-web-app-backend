@@ -47,7 +47,9 @@ export const REWARD_ENGINE_ABI = [
   "function settleWeekly(address user)",
   "function calculateReward(address user, uint256 stakeIndex) view returns (uint256)",
   "function rewardPoolBalance() view returns (uint256)",
-  "event WeeklySettlement(address indexed user, uint256 totalReward, uint256 withdrawable, uint256 vested)",
+  "function getTotalPending(address user) view returns (uint256)",
+  "function liquidSplitPct(uint8 programType) view returns (uint256)",
+  "event RewardSettled(address indexed user, uint256 totalReward, uint256 liquidAmount, uint256 shortVestedAmount, uint256 longVestedAmount)",
 ];
 
 export const VAULT_MANAGER_ABI = [
@@ -56,27 +58,37 @@ export const VAULT_MANAGER_ABI = [
   "event VaultActivated(address indexed user, uint8 tier, address paymentToken, uint256 amount)",
 ];
 
+// Updated: new StakeInfo struct with btnEquivalent and isUSDC
 export const STAKING_VAULT_ABI = [
-  "function getStakes(address user) view returns (tuple(uint256 amount, uint256 startTime, uint8 programType, uint256 lastRewardTime, bool active)[])",
+  "function getStakes(address user) view returns (tuple(uint256 amount, uint256 btnEquivalent, uint256 startTime, uint8 programType, uint256 lastRewardTime, bool active, bool isUSDC)[])",
   "function getPendingRewards(address user, uint256 stakeIndex) view returns (uint256)",
+  "function getUserTotalStaked(address user) view returns (uint256)",
   "function totalStaked() view returns (uint256)",
-  "function easyStartRate() view returns (uint256)",
-  "function earlyExitPenaltyBps() view returns (uint256)",
-  "event Staked(address indexed user, uint256 amount, uint8 programType, uint256 stakeIndex)",
-  "event Unstaked(address indexed user, uint256 principal, uint256 stakeIndex)",
+  "function totalStakedUSDC() view returns (uint256)",
+  "function dailyRateBps(uint8 programType) view returns (uint256)",
+  "function btnPriceUSD() view returns (uint256)",
+  "event Staked(address indexed user, uint256 amount, uint8 programType, uint256 stakeIndex, bool isUSDC)",
+  "event Unstaked(address indexed user, uint256 principal, uint256 stakeIndex, bool isUSDC)",
   "event UnstakedWithPenalty(address indexed user, uint256 returned, uint256 penalty, uint256 stakeIndex)",
 ];
 
+// Updated: per-deposit vesting with vestingType
 export const VESTING_POOL_ABI = [
   "function getVestedBalance(address user) view returns (uint256)",
   "function getPendingRelease(address user) view returns (uint256)",
-  "event VestingAdded(address indexed user, uint256 amount)",
-  "event VestingReleased(address indexed user, uint256 amount)",
+  "function getDepositCount(address user) view returns (uint256)",
+  "function getDeposit(address user, uint256 index) view returns (tuple(uint256 amount, uint256 depositTime, uint8 vestingType, uint256 released, bool fullyReleased))",
+  "event VestingAdded(address indexed user, uint256 amount, uint8 vestingType, uint256 depositIndex)",
+  "event VestedReleased(address indexed user, uint256 amount, uint256 depositsProcessed)",
 ];
 
+// Updated: dual-token withdrawal
 export const WITHDRAWAL_WALLET_ABI = [
   "function getWithdrawableBalance(address user) view returns (uint256)",
-  "event Withdrawn(address indexed user, uint256 amount)",
+  "function getWithdrawableInUSDC(address user) view returns (uint256)",
+  "function btnPriceUSD() view returns (uint256)",
+  "event WithdrawnAsBTN(address indexed user, uint256 btnAmount)",
+  "event WithdrawnAsUSDC(address indexed user, uint256 btnAmount, uint256 usdcAmount)",
   "event WithdrawableAdded(address indexed user, uint256 amount)",
 ];
 
@@ -84,8 +96,13 @@ export const BONUS_ENGINE_ABI = [
   "function getReferrer(address user) view returns (address)",
   "function getDownline(address user) view returns (address[])",
   "event ReferrerRegistered(address indexed user, address indexed referrer)",
-  "event DirectBonusPaid(address indexed referrer, address indexed staker, uint256 amount)",
-  "event MatchingBonusPaid(address indexed recipient, address indexed source, uint256 amount, uint8 level)",
+  "event DirectBonusProcessed(address indexed referrer, address indexed staker, uint256 stakeAmount, uint256 bonusAmount)",
+  "event MatchingBonusProcessed(address indexed ancestor, address indexed downlineUser, uint256 bonusAmount, uint8 level)",
+];
+
+export const RESERVE_FUND_ABI = [
+  "function getBalance(address token) view returns (uint256)",
+  "event FundsDistributed(address indexed token, address indexed to, uint256 amount, string reason)",
 ];
 
 // Provider + Signer
@@ -119,6 +136,14 @@ export function getBtnTokenContract(signerOrProvider?: ethers.Signer | ethers.Pr
   return new ethers.Contract(
     env.contracts.btnToken,
     BTN_TOKEN_ABI,
+    signerOrProvider || getProvider()
+  );
+}
+
+export function getUsdcTokenContract(signerOrProvider?: ethers.Signer | ethers.Provider): ethers.Contract {
+  return new ethers.Contract(
+    env.contracts.usdcToken,
+    BTN_TOKEN_ABI, // same ERC20 interface
     signerOrProvider || getProvider()
   );
 }

@@ -29,6 +29,7 @@ export const env = {
   // Contract addresses
   contracts: {
     btnToken: required("BTN_TOKEN_ADDRESS"),
+    usdcToken: optional("USDC_TOKEN_ADDRESS", ""),
     custodial: required("CUSTODIAL_ADDRESS"),
     vaultManager: optional("VAULT_MANAGER_ADDRESS", ""),
     stakingVault: optional("STAKING_VAULT_ADDRESS", ""),
@@ -36,6 +37,7 @@ export const env = {
     vestingPool: optional("VESTING_POOL_ADDRESS", ""),
     withdrawalWallet: optional("WITHDRAWAL_WALLET_ADDRESS", ""),
     bonusEngine: optional("BONUS_ENGINE_ADDRESS", ""),
+    reserveFund: optional("RESERVE_FUND_ADDRESS", ""),
   },
 
   // Auth

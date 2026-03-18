@@ -5,21 +5,32 @@ export type Address = `0x${string}`;
 export type VaultTier = 0 | 1 | 2 | 3; // 0 = none, 1 = T1, 2 = T2, 3 = T3
 
 // ─── Staking Program Types ───
-export type ProgramType = 0 | 1; // 0 = Short (30d), 1 = Long (180d)
+export type ProgramType = 0 | 1 | 2; // 0 = Flex30, 1 = Boost180, 2 = Max360
 
-// ─── Stake Info (matches contract struct) ───
+// ─── Stake Info (matches new contract struct) ───
 export interface StakeInfo {
   amount: bigint;
+  btnEquivalent: bigint;
   startTime: bigint;
-  programType: number; // 0 = Short (30d), 1 = Long (180d)
+  programType: number; // 0 = Flex30, 1 = Boost180, 2 = Max360
   lastRewardTime: bigint;
   active: boolean;
+  isUSDC: boolean;
+}
+
+// ─── Vesting Deposit (matches new VestingPool struct) ───
+export interface VestingDeposit {
+  amount: bigint;
+  depositTime: bigint;
+  vestingType: number; // 0 = short (30d+60d), 1 = long (180d+180d)
+  released: bigint;
+  fullyReleased: boolean;
 }
 
 // ─── User Dashboard ───
 export interface UserDashboard {
   btnBalance: bigint;
-  usdtBalance: bigint;
+  usdcBalance: bigint;
   vaultActive: boolean;
   vaultTier: VaultTier;
   totalStaked: bigint;
@@ -54,12 +65,19 @@ export interface TierConfig {
 export interface ProgramConfig {
   type: ProgramType;
   name: string;
+  fullName: string;
   lockDays: number;
   lockSeconds: number;
-  dailyRate: number; // 0.005 = 0.5%
-  multiplierNote: string;
+  dailyRateBps: number; // basis points per day
+  dailyRatePercent: number; // human-readable %
+  aprEstimate: string; // e.g., "~90%", "~180%", "~250%"
+  liquidSplitPct: number; // % of rewards that are liquid (withdrawable)
+  vestedSplitPct: number; // % that goes to vesting
+  vestingType: "short" | "long"; // short: 30d+60d, long: 180d+180d
+  principalReturned: boolean; // Flex30=true, others=false
   earlyExitAllowed: boolean;
   earlyExitPenaltyBps: number; // 1500 = 15%
+  color: string;
 }
 
 // ─── Matching Bonus Level ───

@@ -4,6 +4,10 @@ import type { TierConfig, ProgramConfig, MatchingLevel, VaultTier } from "@/type
 export const BASE_SEPOLIA_CHAIN_ID = 84532;
 export const BASE_SEPOLIA_EXPLORER = "https://sepolia.basescan.org";
 
+// ─── BTN Platform Price ───
+export const BTN_PRICE_USD = 2.25; // $2.25 fixed platform price
+export const BTN_PRICE_RAW = BigInt(2_250_000); // 6 decimals
+
 // ─── Tier Configurations ───
 export const TIER_CONFIGS: Record<1 | 2 | 3, TierConfig> = {
   1: {
@@ -38,27 +42,58 @@ export const TIER_CONFIGS: Record<1 | 2 | 3, TierConfig> = {
   },
 };
 
-// ─── Program Configurations ───
-export const PROGRAM_CONFIGS: Record<0 | 1, ProgramConfig> = {
+// ─── Program Configurations (3 Products) ───
+export const PROGRAM_CONFIGS: Record<0 | 1 | 2, ProgramConfig> = {
   0: {
     type: 0,
-    name: "Short Staking",
+    name: "Flex 30",
+    fullName: "BitTON Flex 30",
     lockDays: 30,
     lockSeconds: 30 * 24 * 60 * 60,
-    dailyRate: 0.005,
-    multiplierNote: "Tier multiplier (1.0x / 1.1x / 1.2x)",
+    dailyRateBps: 25, // 0.25% per day
+    dailyRatePercent: 0.25,
+    aprEstimate: "~90%",
+    liquidSplitPct: 50,
+    vestedSplitPct: 50,
+    vestingType: "short",
+    principalReturned: true,
     earlyExitAllowed: true,
     earlyExitPenaltyBps: 1500,
+    color: "blue",
   },
   1: {
     type: 1,
-    name: "Long Staking",
+    name: "Boost 180",
+    fullName: "BitTON Boost 180",
     lockDays: 180,
     lockSeconds: 180 * 24 * 60 * 60,
-    dailyRate: 0.005,
-    multiplierNote: "Fixed 1.2x multiplier",
+    dailyRateBps: 100, // 1.0% per day
+    dailyRatePercent: 1.0,
+    aprEstimate: "~180%",
+    liquidSplitPct: 20,
+    vestedSplitPct: 80,
+    vestingType: "long",
+    principalReturned: false,
     earlyExitAllowed: false,
     earlyExitPenaltyBps: 0,
+    color: "purple",
+  },
+  2: {
+    type: 2,
+    name: "Max 360",
+    fullName: "BitTON Max 360",
+    lockDays: 360,
+    lockSeconds: 360 * 24 * 60 * 60,
+    dailyRateBps: 69, // 0.69% per day
+    dailyRatePercent: 0.69,
+    aprEstimate: "~250%",
+    liquidSplitPct: 15,
+    vestedSplitPct: 85,
+    vestingType: "long",
+    principalReturned: false,
+    earlyExitAllowed: false,
+    earlyExitPenaltyBps: 0,
+    color: "amber",
   },
 };
 
@@ -79,9 +114,6 @@ export const MATCHING_LEVELS: MatchingLevel[] = [
 // ─── Misc Constants ───
 export const DIRECT_BONUS_BPS = 500; // 5%
 export const MIN_PERSONAL_STAKE = BigInt(500_000_000); // 500 BTN (6 decimals)
-export const VESTING_DAILY_RATE = 0.005; // 0.5% per day
-export const SETTLEMENT_WITHDRAWABLE_PCT = 10;
-export const SETTLEMENT_VESTING_PCT = 90;
 export const EARLY_EXIT_PENALTY_BPS = 1500; // 15%
 
 // ─── Explorer Helpers ───

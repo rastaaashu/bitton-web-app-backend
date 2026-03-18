@@ -10,6 +10,19 @@ import {
 
 const router = Router();
 
+// Product name mapping
+const PROGRAM_NAMES: Record<number, string> = {
+  0: "FLEX_30",
+  1: "BOOST_180",
+  2: "MAX_360",
+};
+
+const LOCK_DAYS: Record<number, number> = {
+  0: 30,
+  1: 180,
+  2: 360,
+};
+
 // Helper: validate Ethereum address
 function isValidAddress(address: string): boolean {
   try {
@@ -41,12 +54,15 @@ router.get("/stakes/:address", async (req: Request, res: Response) => {
     for (let i = 0; i < rawStakes.length; i++) {
       const s = rawStakes[i];
       const amount = s.amount ?? s[0];
-      const startTime = s.startTime ?? s[1];
-      const programType = s.programType ?? s[2];
-      const lastRewardTime = s.lastRewardTime ?? s[3];
-      const active = s.active ?? s[4];
+      const btnEquivalent = s.btnEquivalent ?? s[1];
+      const startTime = s.startTime ?? s[2];
+      const programType = s.programType ?? s[3];
+      const lastRewardTime = s.lastRewardTime ?? s[4];
+      const active = s.active ?? s[5];
+      const isUSDC = s.isUSDC ?? s[6];
 
-      const lockDays = Number(programType) === 0 ? 30 : Number(programType) === 1 ? 180 : 360;
+      const pt = Number(programType);
+      const lockDays = LOCK_DAYS[pt] || 30;
       const endTime = Number(startTime) + lockDays * 86400;
 
       let pendingReward = BigInt(0);
@@ -62,8 +78,12 @@ router.get("/stakes/:address", async (req: Request, res: Response) => {
         index: i,
         amount: ethers.formatUnits(amount, 6),
         amountRaw: amount.toString(),
-        programType: Number(programType) === 0 ? "EASY_START" : Number(programType) === 1 ? "SHORT" : "LONG",
-        programTypeId: Number(programType),
+        btnEquivalent: ethers.formatUnits(btnEquivalent, 6),
+        btnEquivalentRaw: btnEquivalent.toString(),
+        programType: PROGRAM_NAMES[pt] || "UNKNOWN",
+        programTypeId: pt,
+        isUSDC: Boolean(isUSDC),
+        tokenSymbol: Boolean(isUSDC) ? "USDC" : "BTN",
         startTime: Number(startTime),
         endTime,
         active: Boolean(active),
@@ -119,12 +139,12 @@ router.get("/bonuses/:address", async (req: Request, res: Response) => {
     // Query direct and matching bonus events in parallel
     const [directEvents, matchingEvents] = await Promise.all([
       bonusEngine.queryFilter(
-        bonusEngine.filters.DirectBonusPaid(normalizedAddr),
+        bonusEngine.filters.DirectBonusProcessed(normalizedAddr),
         fromBlock,
         toBlock
       ).catch(() => []),
       bonusEngine.queryFilter(
-        bonusEngine.filters.MatchingBonusPaid(normalizedAddr),
+        bonusEngine.filters.MatchingBonusProcessed(normalizedAddr),
         fromBlock,
         toBlock
       ).catch(() => []),
@@ -137,7 +157,7 @@ router.get("/bonuses/:address", async (req: Request, res: Response) => {
     for (const ev of directEvents) {
       const log = ev as ethers.EventLog;
       const block = await provider.getBlock(log.blockNumber);
-      const amount = ethers.formatUnits(log.args[2], 6);
+      const amount = ethers.formatUnits(log.args[3], 6); // bonusAmount is 4th arg
       totalDirectBonus += parseFloat(amount);
       bonuses.push({
         type: "DIRECT_BONUS",
@@ -152,7 +172,7 @@ router.get("/bonuses/:address", async (req: Request, res: Response) => {
     for (const ev of matchingEvents) {
       const log = ev as ethers.EventLog;
       const block = await provider.getBlock(log.blockNumber);
-      const amount = ethers.formatUnits(log.args[2], 6);
+      const amount = ethers.formatUnits(log.args[2], 6); // bonusAmount is 3rd arg
       totalMatchingBonus += parseFloat(amount);
       bonuses.push({
         type: "MATCHING_BONUS",
@@ -214,19 +234,15 @@ router.get("/referrals/:address", async (req: Request, res: Response) => {
     const downlineInfo = [];
     for (const member of downline) {
       try {
-        const [memberActive, memberTier, memberStakes] = await Promise.all([
+        const [memberActive, memberTier] = await Promise.all([
           vaultManager.isVaultActive(member).catch(() => false),
           vaultManager.getUserTier(member).catch(() => 0),
-          stakingVault.getStakes(member).catch(() => []),
         ]);
 
         let memberTotalStaked = BigInt(0);
-        for (const s of memberStakes) {
-          const active = s.active ?? s[4];
-          if (active) {
-            memberTotalStaked += BigInt(s.amount ?? s[0]);
-          }
-        }
+        try {
+          memberTotalStaked = await stakingVault.getUserTotalStaked(member);
+        } catch {}
 
         downlineInfo.push({
           address: member,

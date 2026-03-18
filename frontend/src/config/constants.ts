@@ -111,6 +111,10 @@ export const MATCHING_LEVELS: MatchingLevel[] = [
   { level: 10, bps: 100, percentage: "1%" },
 ];
 
+// ─── Settlement Split ───
+export const SETTLEMENT_WITHDRAWABLE_PCT = 10; // 10% to withdrawal wallet
+export const SETTLEMENT_VESTING_PCT = 90; // 90% to vesting pool
+
 // ─── Misc Constants ───
 export const DIRECT_BONUS_BPS = 500; // 5%
 export const MIN_PERSONAL_STAKE = BigInt(500_000_000); // 500 BTN (6 decimals)

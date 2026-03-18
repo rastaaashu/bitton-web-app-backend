@@ -294,6 +294,30 @@ router.get("/users/:id", async (req: Request, res: Response) => {
 });
 
 /**
+ * POST /admin/create-sponsor-code
+ * Create a custom sponsor code for a user.
+ */
+router.post("/create-sponsor-code", async (req: Request, res: Response) => {
+  try {
+    const { userId, code } = req.body;
+    if (!userId || !code) {
+      res.status(400).json({ error: "userId and code required" });
+      return;
+    }
+    const sc = await prisma.sponsorCode.create({
+      data: { userId, code, maxUses: 0 },
+    });
+    res.status(201).json({ sponsorCode: sc.code, id: sc.id });
+  } catch (err: any) {
+    if (err?.code === "P2002") {
+      res.status(409).json({ error: "Code already exists" });
+      return;
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
  * POST /admin/seed-bootstrap
  * Create a bootstrap admin user + sponsor code for initial registration.
  * Only works when no users exist in the database.

@@ -1,154 +1,131 @@
-# BitTON.AI — System Diagrams
+# BitTON.AI -- System Diagrams (V2)
 
-## 1. User Registration Flow (Email + Wallet + Sponsor)
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant F as Frontend
-    participant W as Wallet (MetaMask)
-    participant B as Backend
-    participant DB as PostgreSQL
-    participant E as Email Service
-
-    U->>F: Visit /register?ref=SPONSOR_CODE
-    U->>F: Fill email + password
-    U->>F: Connect wallet via RainbowKit
-    U->>F: Click "Create Account"
-
-    F->>W: Sign registration message
-    W->>F: signature
-
-    F->>B: POST /auth/register-wallet<br/>{email, password, sponsorCode, address, signature, message}
-    B->>B: Verify wallet signature
-    B->>DB: Check email + wallet uniqueness
-    B->>DB: Validate sponsor code
-    B->>DB: Create user (PENDING_EMAIL)
-    B->>DB: Create verification token
-    B->>E: Send verification email
-    B->>F: 201 {userId, status: PENDING_EMAIL}
-
-    U->>F: Click email link /verify-email?token=XXX
-    F->>B: POST /auth/verify-email {token}
-    B->>DB: Mark token used
-    B->>DB: Update user → CONFIRMED
-    B->>F: 200 {status: CONFIRMED}
-```
-
-## 2. Wallet Login Flow (Challenge-Sign)
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant F as Frontend
-    participant W as Wallet (MetaMask)
-    participant B as Backend
-    participant DB as PostgreSQL
-
-    U->>F: Visit /login
-    U->>F: Connect wallet via RainbowKit
-    U->>F: Click "Sign in"
-
-    F->>B: POST /auth/challenge {address}
-    B->>F: {message, nonce}
-
-    F->>W: Sign challenge message
-    W->>F: signature
-
-    F->>B: POST /auth/verify {address, signature, message}
-    B->>B: Verify signature (ethers.verifyMessage)
-    B->>DB: Find user by wallet (must exist + CONFIRMED)
-    B->>DB: Create login session
-    B->>F: 200 {accessToken, refreshToken, user}
-
-    F->>F: Store tokens in localStorage
-    F->>F: Redirect to /dashboard
-```
-
-## 3. Staking & Reward Lifecycle
+## 1. Staking & Reward Lifecycle (V2)
 
 ```mermaid
 flowchart TD
-    A[User activates vault T1/T2/T3] -->|Pay USDT or BTN| B[VaultManager]
-    B --> C[User stakes BTN]
-    C -->|Short 30d or Long 180d| D[StakingVault]
+    A[User activates vault T1/T2/T3] -->|Pay USDC or BTN| B[VaultManager]
+    B --> C[User stakes USDC]
+    C -->|Flex30 / Boost180 / Max360| D[StakingVault]
 
-    D --> E{Weekly Settlement}
-    E -->|10%| F[WithdrawalWallet]
-    E -->|90%| G[VestingPool]
+    D --> E{Settlement}
+    E -->|Flex30: 50% liquid| F[WithdrawalWallet]
+    E -->|Flex30: 50% vested| G[VestingPool]
+    E -->|Boost180: 20% liquid| F
+    E -->|Boost180: 80% vested| G
+    E -->|Max360: 15% liquid| F
+    E -->|Max360: 85% vested| G
 
-    G -->|0.5%/day release| F
+    G -->|Freeze then linear release| F
 
-    F -->|User withdraw| H[User receives BTN]
+    F -->|User withdraws BTN or USDC| H[User wallet]
 
     E --> I{Referral Bonuses}
     I -->|5% direct| J[BonusEngine]
     I -->|Level-based matching| J
     J --> F
+
+    D -->|Early exit penalty 15%| K[ReserveFund]
 ```
 
-## 4. TON → Base Migration Pipeline
-
-```mermaid
-flowchart LR
-    A[TON Snapshot CSV] -->|Import| B[PostgreSQL]
-    C[User links wallets] -->|link-wallet| B
-    B -->|Build claims| D[Migration Claims]
-    D -->|Dispatch batches| E[Operator Jobs]
-    E -->|batchMigrate| F[CustodialDistribution]
-    F -->|BTN transfer| G[User wallets on Base]
-```
-
-## 5. Contract Architecture
+## 2. Contract Architecture (V2)
 
 ```mermaid
 graph TD
     BTN[BTNToken<br/>ERC-20, 21M supply]
-    CD[CustodialDistribution<br/>Treasury, non-upgradeable]
+    USDC[USDC Token<br/>Staking deposits]
     VM[VaultManager<br/>T1/T2/T3 activation]
-    SV[StakingVault<br/>Short/Long programs]
-    RE[RewardEngine<br/>Weekly settlement]
-    VP[VestingPool<br/>0.5%/day release]
-    WW[WithdrawalWallet<br/>User withdrawals]
+    SV[StakingVault<br/>Flex30/Boost180/Max360]
+    RE[RewardEngine<br/>Per-product splits]
+    VP[VestingPool<br/>Freeze + linear release]
+    WW[WithdrawalWallet<br/>BTN or USDC withdrawal]
     BE[BonusEngine<br/>Direct + matching]
+    RF[ReserveFund<br/>Penalties & reserves]
 
-    CD -->|fund| RE
-    CD -->|distribute| WW
-
+    USDC -->|deposit| SV
     VM -->|gate| SV
     SV -->|rewards| RE
-    RE -->|10%| WW
-    RE -->|90%| VP
+    RE -->|liquid %| WW
+    RE -->|vested %| VP
     RE -->|bonuses| BE
     VP -->|release| WW
     BE -->|credit| WW
+    SV -->|penalty| RF
+    VP -->|early unlock penalty| RF
 
     style BTN fill:#f9f,stroke:#333
-    style CD fill:#ff9,stroke:#333
+    style USDC fill:#9f9,stroke:#333
     style VM fill:#9ff,stroke:#333
     style SV fill:#9ff,stroke:#333
     style RE fill:#9ff,stroke:#333
     style VP fill:#9ff,stroke:#333
     style WW fill:#9ff,stroke:#333
     style BE fill:#9ff,stroke:#333
+    style RF fill:#ff9,stroke:#333
 ```
 
-## 6. User Status State Machine
+## 3. Vesting Schedule (V2)
 
 ```mermaid
-stateDiagram-v2
-    [*] --> PENDING_EMAIL: register-wallet (email+wallet+sponsor)
-    PENDING_EMAIL --> CONFIRMED: Verify email (no sponsor confirm needed)
-    PENDING_EMAIL --> PENDING_SPONSOR: Verify email (has sponsor)
-    PENDING_SPONSOR --> CONFIRMED: Sponsor confirms
+gantt
+    title Vesting Timelines
+    dateFormat  YYYY-MM-DD
+    section Short Vesting (Flex 30)
+    Freeze Period (30 days)    :a1, 2026-01-01, 30d
+    Linear Release (60 days)   :a2, after a1, 60d
+    section Long Vesting (Boost 180 / Max 360)
+    Freeze Period (180 days)   :b1, 2026-01-01, 180d
+    Linear Release (180 days)  :b2, after b1, 180d
 ```
 
-## Exporting to PNG
+## 4. Dual-Token Withdrawal Flow
 
-Use `scripts/export-diagrams.sh` to render these diagrams as PNG:
+```mermaid
+flowchart LR
+    A[WithdrawalWallet<br/>Balance in BTN] --> B{User choice}
+    B -->|withdrawBTN| C[Send BTN to wallet]
+    B -->|withdrawUSDC| D[Convert at $2.25<br/>Send USDC to wallet]
+```
 
-```bash
-chmod +x scripts/export-diagrams.sh
-./scripts/export-diagrams.sh
-# Output: docs/images/*.png
+## 5. Product Comparison
+
+```mermaid
+graph LR
+    subgraph Flex30
+        F1[30d lock] --> F2[0.25%/day]
+        F2 --> F3[50/50 split]
+        F3 --> F4[Principal returned]
+    end
+    subgraph Boost180
+        B1[180d lock] --> B2[1.0%/day]
+        B2 --> B3[20/80 split]
+        B3 --> B4[Principal to treasury]
+    end
+    subgraph Max360
+        M1[360d lock] --> M2[0.69%/day]
+        M2 --> M3[15/85 split]
+        M3 --> M4[Principal to treasury]
+    end
+```
+
+## 6. Auth Flow (Multi-Method)
+
+```mermaid
+flowchart TD
+    A[User] --> B{Auth Method}
+    B -->|Wallet| C[RainbowKit Connect]
+    B -->|Email| D[Enter Email]
+    B -->|Telegram| E[Widget Auth]
+
+    C --> F[Sign Message]
+    F --> G[JWT Issued]
+
+    D --> H[OTP Sent]
+    H --> I[Verify OTP]
+    I --> G
+
+    E --> J[HMAC Verified]
+    J --> G
+
+    G --> K[Dashboard]
 ```

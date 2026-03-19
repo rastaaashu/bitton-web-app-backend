@@ -1,6 +1,8 @@
-# BitTON.AI — Architecture & Scalability Blueprint
+# BitTON.AI -- Architecture & Scalability Blueprint (V2)
 
 **Path from 60,000 Users to 1 Billion**
+
+> **Note:** This document reflects the V2 system with 3 staking products (Flex30/Boost180/Max360), USDC staking, and 9 contracts including ReserveFund.
 
 ---
 
@@ -21,7 +23,7 @@
 │            │                               │                      │
 │  ┌─────────▼───────────────────────────────▼───────────────────┐ │
 │  │                BASE BLOCKCHAIN (L2)                           │ │
-│  │  8 Smart Contracts (UUPS Upgradeable)                        │ │
+│  │  9 Smart Contracts (7 UUPS Upgradeable + 2 tokens)           │ │
 │  │  Transactions: $0.001-0.01 each                              │ │
 │  └──────────────────────────────────────────────────────────────┘ │
 │                                                                    │
@@ -390,3 +392,4 @@ User ──▶ CDN Edge ──▶ API Gateway ──▶ Redis ──▶ Backend 
 ---
 
 *This document provides the architectural roadmap for scaling BitTON.AI from its current state to serving 1 billion users globally.*
+

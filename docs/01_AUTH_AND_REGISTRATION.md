@@ -1,131 +1,85 @@
-# BitTON.AI -- Auth & Registration
+# BitTON.AI -- Auth & Registration (V2)
 
-## Single Entry Path: Wallet + Email Registration
+## Multi-Method Authentication
 
-All users must register via referral link and connect a wallet. There is no wallet-only or email-only path.
+BitTON.AI supports three independent login methods. Wallet connection is NOT required for email or Telegram login.
 
-### Registration Flow (`/register?ref=SPONSOR_CODE`)
+| Method | Registration | Login | Wallet Required? |
+|--------|-------------|-------|-----------------|
+| Wallet (RainbowKit) | Connect + sign | Challenge-sign | Yes |
+| Email (OTP) | Email + OTP + optional wallet | Email + OTP | No |
+| Telegram | Widget auth + optional wallet | Widget auth | No |
 
-1. **User arrives** via referral link with `?ref=` query parameter (required)
-2. **Fills form**: email + password + confirm password
-3. **Connects wallet** via RainbowKit (mandatory)
-4. **Signs registration message** via MetaMask/wallet
-5. **Backend verifies**: signature valid, wallet unique, email unique, sponsor code valid
-6. **User created** with status `PENDING_EMAIL`, verification email sent
-7. **User clicks email link** -> `/verify-email?token=XXX` -> status becomes `CONFIRMED`
+### Registration Flows
 
-### Login Flow (`/login`)
+**Wallet Registration:**
+1. User arrives via referral link (`/register?ref=CODE`)
+2. Connects wallet via RainbowKit
+3. Signs registration message
+4. Account created as CONFIRMED immediately
 
-1. **Connect wallet** via RainbowKit
-2. **Click "Sign in"** -> backend issues challenge (nonce + timestamp)
-3. **User signs challenge** -> backend verifies signature
-4. **Backend checks**: wallet has registered account, status is `CONFIRMED`
-5. **Returns JWT** access + refresh tokens -> stored in localStorage
-6. **Redirect** to `/dashboard`
+**Email Registration:**
+1. User enters email
+2. Backend sends 6-digit OTP
+3. User verifies OTP
+4. Optionally connects wallet
+5. Account created as CONFIRMED
 
-### Registration API -- `POST /auth/register-wallet`
+**Telegram Registration:**
+1. User authenticates via Telegram widget
+2. HMAC verified against bot token
+3. Optionally connects wallet
+4. Account created as CONFIRMED
 
-**Request:**
-```json
-{
-  "email": "user@example.com",
-  "password": "securepass123",
-  "sponsorCode": "ABC123",
-  "address": "0x1234...abcd",
-  "signature": "0x...",
-  "message": "Sign this message to register with BitTON.AI\n\nEmail: user@example.com\nAddress: 0x1234\nTimestamp: 2026-03-05T..."
-}
-```
+### Login Flows
 
-**Response (201):**
-```json
-{
-  "success": true,
-  "userId": "uuid",
-  "status": "PENDING_EMAIL",
-  "message": "Verification email sent. Please check your inbox."
-}
-```
+**Wallet Login:**
+1. Connect wallet via RainbowKit
+2. Backend issues challenge (nonce + timestamp)
+3. User signs challenge
+4. Backend verifies signature, returns JWT
 
-**Errors:** 400 (invalid input/sponsor code), 401 (bad signature), 409 (email/wallet exists)
+**Email Login:**
+1. User enters email
+2. Backend sends 6-digit OTP
+3. User verifies OTP
+4. Backend returns JWT
 
-### Login API -- Wallet Challenge + Verify
+**Telegram Login:**
+1. User authenticates via Telegram widget
+2. Backend verifies HMAC
+3. Backend returns JWT
 
-1. `POST /auth/challenge` -> `{ address }` -> returns `{ message, nonce }`
-2. `POST /auth/verify` -> `{ address, signature, message }` -> returns JWT tokens
+### Token Strategy
 
-**Important change**: `/auth/verify` no longer auto-creates users. If no registered account exists for the wallet, it returns 404. If account status is not `CONFIRMED`, it returns 403.
+- **Access token**: JWT, 15 min expiry
+- **Refresh token**: JWT, 7 day expiry, stored in LoginSession table
+- **Rotation**: On `/auth/refresh`, old refresh token is revoked, new one issued
+- **Frontend storage**: `localStorage` (keys: `bitton_access_token`, `bitton_refresh_token`)
 
-### Token Refresh -- `POST /auth/refresh`
+### Sponsor / Referral
 
-**Request:**
-```json
-{ "refreshToken": "eyJ..." }
-```
-
-**Response (200):**
-```json
-{
-  "accessToken": "eyJ...",
-  "user": { "id": "uuid", "email": "...", "status": "CONFIRMED", "evmAddress": "0x..." }
-}
-```
-
-### Logout -- `POST /auth/logout`
-
-**Request:**
-```json
-{ "refreshToken": "eyJ..." }
-```
-
-Revokes the refresh token in the database.
-
-## Status Transitions
-
-```
-register-wallet (email+wallet+sponsor)
-        |
-   PENDING_EMAIL --[verify email]--> PENDING_SPONSOR --[sponsor confirm]--> CONFIRMED
-                                          |
-                                    (no sponsor)
-                                          |
-   PENDING_EMAIL --[verify email]--> CONFIRMED
-```
+- Referral link: `/register?ref=CODE_OR_WALLET_ADDRESS`
+- Accepts both sponsor code strings and EVM wallet addresses
+- Auto-creates a sponsor code for every new user on registration
+- Sponsor relationship stored as `User.sponsorId`
 
 ## Route Protection (Frontend)
 
-- **Public pages** (no sidebar/header): `/login`, `/register`, `/verify-email`
-- **Protected pages** (sidebar+header, requires JWT + connected wallet): everything else
-- Unauthenticated users are redirected to `/login`
+- **Public pages** (no sidebar/header): `/login`, `/register`
+- **Protected pages** (sidebar+header, requires JWT): everything else
 - Root `/` redirects to `/dashboard` if authed, `/login` if not
-
-## Token Storage (Frontend)
-
-| Key | Purpose |
-|-----|---------|
-| `bitton_access_token` | JWT access token (15min expiry) |
-| `bitton_refresh_token` | JWT refresh token (7d expiry) |
-
-On app mount, the `AuthProvider` attempts to refresh the access token using the stored refresh token. If it fails, the user is logged out.
-
-## Sponsor Codes
-
-| Endpoint | Auth | Description |
-|----------|------|-------------|
-| `POST /sponsor/code/create` | JWT | Create a code (3-32 chars, alphanumeric + dash/underscore) |
-| `GET /sponsor/code/:code` | None | Check code validity and remaining uses |
-
-Sponsor codes have optional `maxUses` (0 = unlimited). When a user registers with a sponsor code, the code's `usedCount` increments.
 
 ## Security
 
 - **Passwords**: bcrypt with 12 salt rounds
 - **Wallet auth**: ECDSA signature verification via ethers.js
+- **Telegram auth**: HMAC-SHA256 against bot token
 - **JWT**: HS256, access token 15min, refresh token 7d
-- **Rate limiting**: 20 req/15min on register/challenge, 10 req/15min on login
+- **OTP**: Crypto-safe generation, 10-min expiry, max 5 attempts
+- **Rate limiting**: 20 req/15min on auth, 5 req/15min on OTP
 - **Validation**: Zod schemas on all inputs
 - **Sessions**: Stored in DB with IP + user-agent, revocable
-- **Challenge nonces**: In-memory Map with 5-min expiry (use Redis in production)
 
 ## Data Model
 
@@ -133,31 +87,38 @@ Sponsor codes have optional `maxUses` (0 = unlimited). When a user registers wit
 User
 |-- id (UUID)
 |-- email (unique, nullable)
-|-- passwordHash
-|-- status (PENDING_EMAIL | PENDING_SPONSOR | CONFIRMED)
 |-- evmAddress (unique, nullable)
-|-- tonAddress (unique, nullable)
+|-- telegramId (unique, nullable)
+|-- status: CONFIRMED
+|-- authMethod: WALLET | EMAIL | TELEGRAM
 |-- sponsorId -> User
-|-- emailVerifiedAt
-|-- relations: walletLinks, loginSessions, sponsorCodes, emailVerificationTokens
+|-- SponsorCode[]
+|-- LoginSession[]
 
-EmailVerificationToken
-|-- token (unique, indexed)
-|-- userId -> User
-|-- expiresAt (24h)
-|-- usedAt
+PendingSession
+|-- type: REGISTER_EMAIL | LOGIN_EMAIL | REGISTER_TELEGRAM | LOGIN_TELEGRAM
+|-- email / telegramId
+|-- verified: boolean
+|-- expiresAt (30 min)
+|-- OtpCode[]
+
+OtpCode
+|-- code (6-digit)
+|-- attempts (max 5)
+|-- expiresAt (10 min)
+
+WalletChallenge
+|-- address (unique)
+|-- nonce, message
+|-- expiresAt (5 min)
 
 SponsorCode
 |-- code (unique)
-|-- userId -> User (sponsor)
 |-- maxUses (0 = unlimited)
 |-- usedCount
-|-- active
 
 LoginSession
-|-- refreshToken (unique, indexed)
-|-- userId -> User
-|-- userAgent, ipAddress
-|-- expiresAt
+|-- refreshToken (unique)
+|-- expiresAt (7 days)
 |-- revokedAt
 ```

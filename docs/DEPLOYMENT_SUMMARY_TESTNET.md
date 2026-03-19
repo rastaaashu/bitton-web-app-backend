@@ -1,99 +1,77 @@
-# BitTON.AI — Testnet Deployment Summary
+# BitTON.AI -- Testnet Deployment Summary (V2)
 
 **Network:** Base Sepolia (chainId: 84532)
-**Date:** 2026-03-02
-**Deployer:** `0x1DaE2C7aeC8850f1742fE96045c23d1AaE3FCf2A`
+**Version:** V2 -- 3-product USDC staking system
+**Date:** 2026-03-18
 
 ---
 
-## Deployed Contracts
+## Deployed Contracts (V2 -- Current)
 
-| Contract | Address | Type | Basescan |
-|----------|---------|------|----------|
-| BTN Token | `0x5b964baafEDf002e5364F37848DCa1908D3e4e9f` | Non-upgradeable | [View](https://sepolia.basescan.org/address/0x5b964baafEDf002e5364F37848DCa1908D3e4e9f#code) |
-| CustodialDistribution | `0x71dB030B792E9D4CfdCC7e452e0Ff55CdB5A4D99` | Non-upgradeable | [View](https://sepolia.basescan.org/address/0x71dB030B792E9D4CfdCC7e452e0Ff55CdB5A4D99#code) |
-| VaultManager | `0xA2b5ffe829441768E8BB8Be49f8ADee0041Fa1b0` | UUPS Proxy | [View](https://sepolia.basescan.org/address/0xA2b5ffe829441768E8BB8Be49f8ADee0041Fa1b0) |
-| StakingVault | `0x50d1516D6d5A4930623BCb7e1Ed28e9fAeA1e82F` | UUPS Proxy | [View](https://sepolia.basescan.org/address/0x50d1516D6d5A4930623BCb7e1Ed28e9fAeA1e82F) |
-| RewardEngine | `0xa86F6abB543b3fa6a2E2cC001870cF60a04c7f31` | UUPS Proxy | [View](https://sepolia.basescan.org/address/0xa86F6abB543b3fa6a2E2cC001870cF60a04c7f31) |
-| VestingPool | `0xa3DC3351670E253d22B783109935fe0B9a11b830` | UUPS Proxy | [View](https://sepolia.basescan.org/address/0xa3DC3351670E253d22B783109935fe0B9a11b830) |
-| WithdrawalWallet | `0xA06238c206C2757AD3f1572464bf720161519eC5` | UUPS Proxy | [View](https://sepolia.basescan.org/address/0xA06238c206C2757AD3f1572464bf720161519eC5) |
-| BonusEngine | `0xFD57598058EC849980F87F0f44bb019A73a0EfC7` | UUPS Proxy | [View](https://sepolia.basescan.org/address/0xFD57598058EC849980F87F0f44bb019A73a0EfC7) |
-| MockUSDT | `0x69Bc9E30366888385f68cBB566EEb655CD5A34CC` | Non-upgradeable | [View](https://sepolia.basescan.org/address/0x69Bc9E30366888385f68cBB566EEb655CD5A34CC) |
-| MockAggregator | `0xf1DC093E1B3fD72A1C7f1B58bd3cE8A4832BEe52` | Non-upgradeable | [View](https://sepolia.basescan.org/address/0xf1DC093E1B3fD72A1C7f1B58bd3cE8A4832BEe52) |
-
----
-
-## Genesis State
-
-- **Total Supply:** 21,000,000.000000 BTN (minted in constructor)
-- **Minting Active:** true (can be disabled via `setMintingActive(false)`)
-- **Owner:** `0x1DaE2C7aeC8850f1742fE96045c23d1AaE3FCf2A`
-- **Deployer Balance:** ~20,889,000 BTN (after transfers below)
-- **RewardEngine Balance:** ~9,999.985649 BTN (funded during initial deployment)
+| Contract | Address | Type |
+|----------|---------|------|
+| BTN Token | `0x5b964baafEDf002e5364F37848DCa1908D3e4e9f` | ERC-20 (6 decimals, 21M cap) |
+| USDC Token | `0x69Bc9E30366888385f68cBB566EEb655CD5A34CC` | ERC-20 (mock) |
+| VaultManager | `0xC5Ab43f26C1BacA8137cf4E4e1Ba98933D30C553` | UUPS Proxy |
+| StakingVault | `0xf246C58FB64dAf6DA751Ea7d2c8db7d38E7a6C4B` | UUPS Proxy |
+| RewardEngine | `0x97d1d86c709F4d5aEb93f46A60A16941c03076c0` | UUPS Proxy |
+| VestingPool | `0x79D2CA5fb7ACF936198ec823a006a34cB611389e` | UUPS Proxy |
+| WithdrawalWallet | `0xa523b6B9c3F2191C02ACfEc92C319D66315a3768` | UUPS Proxy |
+| BonusEngine | `0x20189fFfa3B42B7D32b88376681D9c0Fec4A1eDC` | UUPS Proxy |
+| ReserveFund | `0x8B7917daff5695461CFFDdCF5AA3dC7cC310793D` | UUPS Proxy |
 
 ---
 
-## CustodialDistribution E2E Verification (2026-03-02)
+## V2 System Parameters
 
-All operations tested successfully on Base Sepolia.
+### Staking Products
 
-### Transaction Log
+| Product | Type | Lock | Daily Rate | Liquid/Vested Split | Principal |
+|---------|------|------|------------|---------------------|-----------|
+| Flex 30 | 0 | 30d | 0.25% | 50/50 | Returned |
+| Boost 180 | 1 | 180d | 1.0% | 20/80 | To treasury |
+| Max 360 | 2 | 360d | 0.69% | 15/85 | To treasury |
 
-| Step | Tx Hash | Detail |
-|------|---------|--------|
-| Transfer to Custodial | [`0x75a20777...`](https://sepolia.basescan.org/tx/0x75a20777c164ca2739846d8ce4bcb5e53d1bc9e083803392fc90b5fe71d032c5) | 100,000 BTN |
-| Batch Migrate (3 users) | [`0x4f534c36...`](https://sepolia.basescan.org/tx/0x4f534c363a3cfab56b982d694ac728d1faf41db57554abea05d100026341fde2) | 350 BTN total |
-| Distribute | [`0x2dca52a4...`](https://sepolia.basescan.org/tx/0x2dca52a40077a379f534c0fedb49fbbf07d2f21e9f525461c2cabee62233beec) | 25 BTN |
-| Approve (for return) | [`0x03835f0b...`](https://sepolia.basescan.org/tx/0x03835f0bbbadd0a9f3f7dd8c236f5957de1db8e767b7e699eee852dd7e4a2269) | 10 BTN |
-| Return Tokens | [`0x23518a6c...`](https://sepolia.basescan.org/tx/0x23518a6ceace7b6e4c8da775168f7a117ec369dacc2632dd192381b7a7c70279) | 10 BTN |
+### Vesting Schedules
 
-### Post-E2E State
+| Type | Freeze | Linear Release |
+|------|--------|----------------|
+| Short (Flex 30) | 30 days | 60 days |
+| Long (Boost 180 / Max 360) | 180 days | 180 days |
 
-| Metric | Value |
-|--------|-------|
-| Custodial Balance | 199,635 BTN |
-| Total Distributed | 375 BTN |
-| Total Returned | 10 BTN |
-| Total Migrated | 350 BTN |
-| Migration Enabled | true |
-| Finalized | false |
+### Other Parameters
 
-### Prior Deployment Transactions
-
-The initial system deployment (6 UUPS proxies + wiring) was done in a prior session. All 6 implementation contracts are verified on Basescan. The smoke test (vault activation → staking → settlement → vesting → withdrawal → referral) was executed successfully.
+- **BTN Platform Price**: $2.25
+- **Vault Fees**: T1=$25, T2=$50, T3=$100
+- **Matching Bonus**: 10/7/5/4/3/2/2/1/1/1 (10 levels)
+- **Early Exit Penalty**: 15% (Flex 30 only, to ReserveFund)
+- **Staking Token**: USDC
 
 ---
 
-## Commands Used
+## Quick Reference (Copy/Paste)
 
-```bash
-# Compile
-npx hardhat compile
+```
+Network:             Base Sepolia (chainId 84532)
+RPC:                 https://sepolia.base.org
 
-# Deploy all UUPS proxies (prior session)
-npx hardhat run scripts/deploy-all.js --network base_sepolia
-
-# Deploy CustodialDistribution
-npx hardhat run scripts/deploy-custodial.js --network base_sepolia
-
-# Verify on Basescan
-npx hardhat verify --network base_sepolia 0x71dB030B792E9D4CfdCC7e452e0Ff55CdB5A4D99 0x5b964baafEDf002e5364F37848DCa1908D3e4e9f 0x1DaE2C7aeC8850f1742fE96045c23d1AaE3FCf2A
-
-# E2E runbook
-npx hardhat run scripts/testnet-e2e-runbook.js --network base_sepolia
-
-# Smoke test (prior session)
-npx hardhat run scripts/smoke-test.js --network base_sepolia
-
-# Full test suite (564 passing, 0 failing)
-npx hardhat test
+BTN Token:           0x5b964baafEDf002e5364F37848DCa1908D3e4e9f
+USDC Token:          0x69Bc9E30366888385f68cBB566EEb655CD5A34CC
+VaultManager:        0xC5Ab43f26C1BacA8137cf4E4e1Ba98933D30C553
+StakingVault:        0xf246C58FB64dAf6DA751Ea7d2c8db7d38E7a6C4B
+RewardEngine:        0x97d1d86c709F4d5aEb93f46A60A16941c03076c0
+VestingPool:         0x79D2CA5fb7ACF936198ec823a006a34cB611389e
+WithdrawalWallet:    0xa523b6B9c3F2191C02ACfEc92C319D66315a3768
+BonusEngine:         0x20189fFfa3B42B7D32b88376681D9c0Fec4A1eDC
+ReserveFund:         0x8B7917daff5695461CFFDdCF5AA3dC7cC310793D
 ```
 
 ---
 
 ## Notes
 
-1. **Genesis NOT locked down** on testnet — minting still active, ownership not renounced. This is intentional for continued testing.
-2. **CustodialDistribution NOT finalized** — admin can still grant roles, set caps, and manage migration. Finalization is irreversible and reserved for mainnet.
-3. **MockUSDT and MockAggregator** are test-only contracts with hardcoded values. Replace with real Chainlink feeds and USDT on mainnet.
-4. The first transfer to Custodial (from a prior script run) added 100,000 BTN. The E2E runbook added another 100,000 BTN for a total of 200,000 BTN.
+1. V2 is a fresh deployment -- V1 contract addresses are deprecated.
+2. All products accept USDC deposits. BTN staking is gated for future activation.
+3. ReserveFund is new in V2, replacing the previous burn mechanism for penalties.
+4. Vesting now uses freeze + linear release (not the old 0.5%/day model).
+5. Matching bonus percentages updated: 10/7/5/4/3/2/2/1/1/1 (previously 10/5/3/1/.../1).

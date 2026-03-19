@@ -35,116 +35,41 @@ npm run dev
 | `npm test` | Run Jest test suite |
 | `npx prisma studio` | Open Prisma DB browser |
 
-## Auth Flows
+## Auth Flows (V2)
 
-### Email Registration
-1. `POST /auth/register-email` — email + password + optional sponsorCode
-2. `POST /auth/verify-email` — token from email
-3. `POST /auth/sponsor/confirm` — sponsor confirms referral (JWT required)
-4. `POST /auth/login-email` — returns JWT access + refresh tokens
+Three independent auth methods -- wallet is NOT required for email/telegram:
 
-### Wallet Authentication
-1. `POST /auth/challenge` — get sign message for an EVM address
-2. `POST /auth/verify` — submit signature → returns JWT tokens
+### Wallet Auth
+1. `POST /auth/login/wallet/challenge` -- get sign message
+2. `POST /auth/login/wallet/verify` -- submit signature, returns JWT
 
-### Account Linking
-- `POST /auth/link-email` — attach email to wallet-only account (JWT required)
-- `POST /auth/link-wallet` — attach wallet to email-only account (JWT required)
+### Email Auth (OTP)
+1. `POST /auth/register/email/init` -- sends 6-digit OTP
+2. `POST /auth/verify-otp` -- verify OTP
+3. `POST /auth/register/email/complete` -- complete registration
 
-### Sponsor Codes
-- `POST /sponsor/code/create` — create a sponsor code (JWT required)
-- `GET /sponsor/code/:code` — check code validity (public)
+### Telegram Auth
+1. `POST /auth/register/telegram/init` -- HMAC verification
+2. `POST /auth/register/telegram/complete` -- complete registration
 
-## User Status Flow
+## V2 Contract Addresses (Base Sepolia)
 
-```
-Email (no sponsor):   PENDING_EMAIL → verify email → CONFIRMED
-Email (with sponsor): PENDING_EMAIL → verify email → PENDING_SPONSOR → sponsor confirms → CONFIRMED
-Wallet-only:          → CONFIRMED (immediate)
-```
+| Contract | Address |
+|----------|---------|
+| BTN Token | `0x5b964baafEDf002e5364F37848DCa1908D3e4e9f` |
+| USDC Token | `0x69Bc9E30366888385f68cBB566EEb655CD5A34CC` |
+| VaultManager | `0xC5Ab43f26C1BacA8137cf4E4e1Ba98933D30C553` |
+| StakingVault | `0xf246C58FB64dAf6DA751Ea7d2c8db7d38E7a6C4B` |
+| RewardEngine | `0x97d1d86c709F4d5aEb93f46A60A16941c03076c0` |
+| VestingPool | `0x79D2CA5fb7ACF936198ec823a006a34cB611389e` |
+| WithdrawalWallet | `0xa523b6B9c3F2191C02ACfEc92C319D66315a3768` |
+| BonusEngine | `0x20189fFfa3B42B7D32b88376681D9c0Fec4A1eDC` |
+| ReserveFund | `0x8B7917daff5695461CFFDdCF5AA3dC7cC310793D` |
 
-## API Endpoints
+## Deployed
 
-### Public
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Health check (DB, RPC, relayer status) |
-| POST | `/auth/register-email` | Register with email + password |
-| POST | `/auth/verify-email` | Verify email token |
-| POST | `/auth/login-email` | Login with email + password |
-| POST | `/auth/challenge` | Request wallet sign-in challenge |
-| POST | `/auth/verify` | Verify wallet signature |
-| GET | `/sponsor/code/:code` | Check sponsor code validity |
-| GET | `/migration/status/:evmAddress` | Check migration status |
-| POST | `/migration/link-wallet` | Link TON wallet to EVM wallet |
-
-### Authenticated (requires Bearer JWT)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/auth/sponsor/confirm` | Confirm a referral |
-| POST | `/auth/link-email` | Link email to wallet account |
-| POST | `/auth/link-wallet` | Link wallet to email account |
-| POST | `/sponsor/code/create` | Create a sponsor code |
-
-### Admin (requires `x-api-key` header)
-
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/admin/status` | System overview (on-chain + DB stats) |
-| POST | `/admin/ton/import-snapshot` | Import TON balance snapshot |
-| POST | `/admin/migration/build` | Build claims from linked wallets |
-| POST | `/admin/jobs/dispatch` | Dispatch pending migration batches |
-| POST | `/admin/jobs/distribute` | Create a distribute job |
-| GET | `/admin/jobs` | List operator jobs (paginated) |
-| GET | `/admin/audit` | View audit log |
-
-## Architecture
-
-```
-backend/
-├── prisma/
-│   └── schema.prisma           # DB schema
-├── src/
-│   ├── config/
-│   │   ├── env.ts              # Environment variable loading
-│   │   └── contracts.ts        # ethers.js contract instances
-│   ├── routes/
-│   │   ├── health.ts           # Health check
-│   │   ├── auth.ts             # Email + wallet authentication
-│   │   ├── sponsor.ts          # Sponsor code management
-│   │   ├── admin.ts            # Admin endpoints
-│   │   └── migration.ts        # Migration status + wallet linking
-│   ├── services/
-│   │   ├── chain.service.ts    # On-chain operations
-│   │   ├── email.service.ts    # Email sending (SMTP / dev console)
-│   │   └── migration.service.ts # TON→Base migration pipeline
-│   ├── jobs/
-│   │   └── operator.runner.ts  # Background job runner
-│   ├── middleware/
-│   │   ├── adminAuth.ts        # API key auth
-│   │   └── jwtAuth.ts          # JWT verification middleware
-│   ├── utils/
-│   │   ├── logger.ts           # Winston logger
-│   │   ├── prisma.ts           # Prisma client singleton
-│   │   └── validation.ts       # Zod schemas
-│   ├── __tests__/
-│   │   ├── setup.ts            # Test environment setup
-│   │   └── auth.test.ts        # Auth unit tests (29 tests)
-│   └── index.ts                # Express app entry point
-├── docker-compose.yml          # Postgres for local dev
-├── jest.config.js              # Jest configuration
-└── package.json
-```
-
-## Operator Job Runner
-
-Background job runner polls for pending jobs and executes on-chain:
-- Automatic retry (up to 3 attempts)
-- Idempotency keys prevent duplicates
-- Status tracking: PENDING → PROCESSING → CONFIRMED / FAILED
-- Audit logging for all operations
+- **URL**: https://bitton-backend.onrender.com
+- **Health**: https://bitton-backend.onrender.com/health
 
 ## Environment Variables
 

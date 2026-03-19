@@ -1,7 +1,7 @@
 # BitTON.AI — Environment Configuration Reference
 **For: DevOps Team**
 **Date: 2026-03-11**
-**Classification: CONFIDENTIAL — Contains secrets and private keys**
+**Classification: TEMPLATE — All secrets replaced with placeholders**
 
 ---
 
@@ -33,7 +33,7 @@ PORT=3001
 # ─── Database (Neon PostgreSQL) ───────────────────────────
 # Connection string with SSL. Get from Neon dashboard.
 # Format: postgresql://user:password@host/dbname?sslmode=require
-DATABASE_URL="postgresql://neondb_owner:npg_dTaVveA7MNQ9@ep-solitary-pond-ai53mrwc-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+DATABASE_URL="<YOUR_DATABASE_URL>"
 
 # ─── Blockchain (Base Sepolia Testnet) ────────────────────
 RPC_URL=https://sepolia.base.org
@@ -57,13 +57,13 @@ BONUS_ENGINE_ADDRESS=0xFD57598058EC849980F87F0f44bb019A73a0EfC7
 # ─── Authentication ───────────────────────────────────────
 # JWT signing secret — MUST be 64+ chars, random, unique per environment
 # Generate with: openssl rand -base64 64
-AUTH_SECRET=F41xkFrN318PPj16zSPPic08warh5gk0qHVnWtqXGr1XPMNxPVauoxlsAcfF5jIU
+AUTH_SECRET=<YOUR_AUTH_SECRET>
 # Token expiry
 JWT_ACCESS_EXPIRY=15m
 JWT_REFRESH_EXPIRY=7d
 # Admin API key for /admin/* endpoints
 # Used as X-API-Key header
-ADMIN_API_KEY=bitton-admin-2024-secure
+ADMIN_API_KEY=<YOUR_ADMIN_API_KEY>
 
 # ─── Email (choose ONE method) ────────────────────────────
 # Option A: HTTP API (recommended for Render — SMTP ports blocked)
@@ -82,7 +82,7 @@ SMTP_FROM=noreply@bitton.ai
 
 # ─── Telegram Bot ─────────────────────────────────────────
 # Get from @BotFather on Telegram
-TELEGRAM_BOT_TOKEN=8468894519:AAEC5umtGjpL9z6dIcAzZGpC2wRsRqhI_y4
+TELEGRAM_BOT_TOKEN=<YOUR_TELEGRAM_BOT_TOKEN>
 TELEGRAM_BOT_USERNAME=bitton_auth_bot
 
 # ─── Application ──────────────────────────────────────────
@@ -102,7 +102,7 @@ Deploy on Vercel. All vars must be prefixed with `NEXT_PUBLIC_` to be accessible
 # ═══════════════════════════════════════════════════════════
 
 # WalletConnect Project ID — get from https://cloud.walletconnect.com
-NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=2155b61f6636859efa6bcad974128e06
+NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=<YOUR_WALLETCONNECT_PROJECT_ID>
 
 # Target blockchain network
 NEXT_PUBLIC_CHAIN=base-sepolia
@@ -123,14 +123,14 @@ Used for deploying and verifying contracts. Only needed on developer/CI machines
 # ═══════════════════════════════════════════════════════════
 
 # Deployer wallet private key (with 0x prefix)
-PRIVATE_KEY=74802e9f7b276ac46a0a1fa6129317eb70e80a4c2d1fa91e82b7adc85d15a1c7
+PRIVATE_KEY=<YOUR_DEPLOYER_PRIVATE_KEY>
 
 # Base Sepolia network
 BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
-BASE_SEPOLIA_PRIVATE_KEY=0x74802e9f7b276ac46a0a1fa6129317eb70e80a4c2d1fa91e82b7adc85d15a1c7
+BASE_SEPOLIA_PRIVATE_KEY=<YOUR_DEPLOYER_PRIVATE_KEY_WITH_0x_PREFIX>
 
 # Basescan API key — for contract verification
-BASESCAN_API_KEY=WMC791K6SY5RJSQAMPCDSP2KC5VKA2G5GB
+BASESCAN_API_KEY=<YOUR_BASESCAN_API_KEY>
 
 # ─── Contract Addresses (Base Sepolia — already deployed) ─
 BTN_TOKEN_ADDRESS=0x5b964baafEDf002e5364F37848DCa1908D3e4e9f
@@ -151,7 +151,7 @@ If deploying backend via Render dashboard (not render.yaml), set these env vars 
 | Key | Value | Notes |
 |-----|-------|-------|
 | `NODE_ENV` | `production` | Required |
-| `DATABASE_URL` | `postgresql://neondb_owner:npg_dTaVveA7MNQ9@ep-solitary-pond-ai53mrwc-pooler.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require` | Neon connection string |
+| `DATABASE_URL` | `<YOUR_DATABASE_URL>` | Neon connection string |
 | `RPC_URL` | `https://sepolia.base.org` | Base Sepolia RPC |
 | `CHAIN_ID` | `84532` | Base Sepolia chain ID |
 | `RELAYER_PRIVATE_KEY` | `0x000...001` | **Replace with funded wallet** |
@@ -164,14 +164,14 @@ If deploying backend via Render dashboard (not render.yaml), set these env vars 
 | `VESTING_POOL_ADDRESS` | `0xa3DC3351670E253d22B783109935fe0B9a11b830` | Vesting |
 | `WITHDRAWAL_WALLET_ADDRESS` | `0xA06238c206C2757AD3f1572464bf720161519eC5` | Withdrawals |
 | `BONUS_ENGINE_ADDRESS` | `0xFD57598058EC849980F87F0f44bb019A73a0EfC7` | Bonuses |
-| `AUTH_SECRET` | `F41xkFrN318P...` | **64+ char random string** |
+| `AUTH_SECRET` | `<YOUR_AUTH_SECRET>` | **64+ char random string** |
 | `JWT_ACCESS_EXPIRY` | `15m` | Access token lifetime |
 | `JWT_REFRESH_EXPIRY` | `7d` | Refresh token lifetime |
-| `ADMIN_API_KEY` | `bitton-admin-2024-secure` | For /admin/* endpoints |
+| `ADMIN_API_KEY` | `<YOUR_ADMIN_API_KEY>` | For /admin/* endpoints |
 | `EMAIL_API_KEY` | *(set when available)* | Resend or SendGrid key |
 | `EMAIL_API_PROVIDER` | `resend` | `resend` or `sendgrid` |
 | `SMTP_FROM` | `noreply@bitton.ai` | Sender email |
-| `TELEGRAM_BOT_TOKEN` | `8468894519:AAEC5umtGjpL9z6dIcAzZGpC2wRsRqhI_y4` | From @BotFather |
+| `TELEGRAM_BOT_TOKEN` | `<YOUR_TELEGRAM_BOT_TOKEN>` | From @BotFather |
 | `TELEGRAM_BOT_USERNAME` | `bitton_auth_bot` | Bot username |
 | `APP_URL` | `https://bitton-contracts.vercel.app` | Frontend URL for CORS |
 
@@ -183,7 +183,7 @@ Set in Vercel project → Settings → Environment Variables:
 
 | Key | Value | Notes |
 |-----|-------|-------|
-| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | `2155b61f6636859efa6bcad974128e06` | WalletConnect cloud |
+| `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | `<YOUR_WALLETCONNECT_PROJECT_ID>` | WalletConnect cloud |
 | `NEXT_PUBLIC_CHAIN` | `base-sepolia` | Network |
 | `NEXT_PUBLIC_API_URL` | `https://bitton-backend.onrender.com` | Backend URL |
 

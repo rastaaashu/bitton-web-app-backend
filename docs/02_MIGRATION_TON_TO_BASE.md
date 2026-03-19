@@ -1,4 +1,4 @@
-# BitTON.AI — TON → Base Migration
+# BitTON.AI -- TON to Base Migration
 
 ## Overview
 
@@ -9,7 +9,7 @@ Migrate user balances from the legacy TON-based system to BTN on Base L2. The pr
 ```
 1. SNAPSHOT    Admin imports TON balance data
 2. LINK        Users link TON wallet to EVM wallet
-3. BUILD       Admin matches links with snapshots → creates claims
+3. BUILD       Admin matches links with snapshots -> creates claims
 4. DISPATCH    Admin batches claims into operator jobs
 5. EXECUTE     Operator runner calls batchMigrate on-chain
 6. VERIFY      Users check status via API
@@ -21,68 +21,30 @@ Migrate user balances from the legacy TON-based system to BTN on Base L2. The pr
 
 `POST /admin/ton/import-snapshot` (admin API key required)
 
-```json
-{
-  "rows": [
-    { "tonAddress": "EQ...", "balanceTon": "1000", "balanceBtn": "1000" }
-  ],
-  "snapshotAt": "2026-01-15T00:00:00Z",
-  "batchId": "snapshot-v1"
-}
-```
-
-Duplicates are skipped (by `tonAddress`).
-
 ### 2. Link Wallets
 
-`POST /migration/link-wallet`
-
-```json
-{
-  "tonAddress": "EQ...",
-  "evmAddress": "0x...",
-  "signature": "..."
-}
-```
-
-Creates a `WalletLink` record. TON signature verification is deferred (requires TON SDK integration before mainnet).
+`POST /migration/link-wallet` -- challenge-response with TON proof verification
 
 ### 3. Build Claims
 
-`POST /admin/migration/build`
-
-Matches verified wallet links with snapshot data. Skips already-migrated addresses (checked on-chain).
+`POST /admin/migration/build` -- matches verified wallet links with snapshot data
 
 ### 4. Dispatch Batches
 
-`POST /admin/jobs/dispatch`
-
-Creates `BATCH_MIGRATE` operator jobs in batches of 200 addresses.
+`POST /admin/jobs/dispatch` -- creates BATCH_MIGRATE operator jobs in batches of 200
 
 ### 5. Execution
 
 The operator runner picks up jobs and calls `CustodialDistribution.batchMigrate(recipients[], amounts[])`.
 
-- Retries up to 3 times on failure
-- Updates claim status: QUEUED → CONFIRMED or FAILED
-- Logs tx hash in audit log
-
 ### 6. Status Check
 
-`GET /migration/status/:evmAddress`
+`GET /migration/status/:evmAddress` -- returns migration status
 
-Returns on-chain migration status and DB claim details.
+## Security
 
-## CustodialDistribution Contract
-
-- Holds the 21M BTN supply (minus already distributed)
-- `batchMigrate()` — skips already-migrated addresses
-- `distribute()` — single user distribution
-- `finalize()` — permanently locks down the contract
-- Post-finalization: no more distributions, roles renounced
-
-## Assumptions
-
-- TON signature verification deferred to production (A7)
-- Migration skips duplicates instead of reverting (A3)
-- Snapshot data imported as-is; conversion ratios pre-calculated off-chain
+- TON proof verification (Ed25519 signature)
+- Challenge-response with 5-minute expiry
+- One-time challenge consumption
+- Double-claim prevention (DB + on-chain)
+- TON <-> EVM address uniqueness enforcement

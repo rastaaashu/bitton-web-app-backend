@@ -1,53 +1,53 @@
-# Auth Architecture — BitTON.AI
+# Auth Architecture -- BitTON.AI (V2)
 
 ## Overview
 
-Multi-method auth system supporting EVM wallet, email (OTP), and Telegram registration/login. All state persisted in PostgreSQL via Prisma ORM.
+Multi-method auth system supporting EVM wallet, email (OTP), and Telegram registration/login. All methods are independent -- wallet connection is NOT required for email or Telegram auth. All state persisted in PostgreSQL via Prisma ORM.
 
 ## Database Models
 
 ```
-User                    — canonical user record
-├── email (unique)
-├── evmAddress (unique)
-├── telegramId (unique)
-├── status: CONFIRMED
-├── authMethod: WALLET | EMAIL | TELEGRAM
-├── sponsorId → User
-├── lastLoginAt
-├── SponsorCode[]       — referral codes owned by this user
-├── LoginSession[]      — JWT refresh tokens
-└── sponsored: User[]   — users referred by this user
+User                    -- canonical user record
+|-- email (unique)
+|-- evmAddress (unique)
+|-- telegramId (unique)
+|-- status: CONFIRMED
+|-- authMethod: WALLET | EMAIL | TELEGRAM
+|-- sponsorId -> User
+|-- lastLoginAt
+|-- SponsorCode[]       -- referral codes owned by this user
+|-- LoginSession[]      -- JWT refresh tokens
+|-- sponsored: User[]   -- users referred by this user
 
-PendingSession          — multi-step auth flow state (email/telegram)
-├── type: REGISTER_EMAIL | LOGIN_EMAIL | REGISTER_TELEGRAM | LOGIN_TELEGRAM
-├── email / telegramId
-├── verified: boolean
-├── expiresAt (30 min)
-└── OtpCode[]
+PendingSession          -- multi-step auth flow state (email/telegram)
+|-- type: REGISTER_EMAIL | LOGIN_EMAIL | REGISTER_TELEGRAM | LOGIN_TELEGRAM
+|-- email / telegramId
+|-- verified: boolean
+|-- expiresAt (30 min)
+|-- OtpCode[]
 
-OtpCode                 — 6-digit verification codes
-├── code
-├── attempts (max 5)
-├── expiresAt (10 min)
-└── usedAt
+OtpCode                 -- 6-digit verification codes
+|-- code
+|-- attempts (max 5)
+|-- expiresAt (10 min)
+|-- usedAt
 
-WalletChallenge         — login nonce for wallet sign-in
-├── address (unique)
-├── nonce, message
-└── expiresAt (5 min)
+WalletChallenge         -- login nonce for wallet sign-in
+|-- address (unique)
+|-- nonce, message
+|-- expiresAt (5 min)
 
-SponsorCode             — referral codes
-├── code (unique)
-├── maxUses (0 = unlimited)
-└── usedCount
+SponsorCode             -- referral codes
+|-- code (unique)
+|-- maxUses (0 = unlimited)
+|-- usedCount
 
-LoginSession            — refresh token storage
-├── refreshToken (unique)
-├── expiresAt (7 days)
-└── revokedAt
+LoginSession            -- refresh token storage
+|-- refreshToken (unique)
+|-- expiresAt (7 days)
+|-- revokedAt
 
-AuditLog                — all auth events logged
+AuditLog                -- all auth events logged
 ```
 
 ## Registration Flows
@@ -56,48 +56,48 @@ AuditLog                — all auth events logged
 ```
 POST /auth/register/wallet
   { address, signature, message, sponsorCode }
-  → verify signature → check duplicates → validate sponsor → create user (CONFIRMED)
-  → auto-create sponsor code → issue tokens
+  -> verify signature -> check duplicates -> validate sponsor -> create user (CONFIRMED)
+  -> auto-create sponsor code -> issue tokens
 ```
 
 ### B) Email Registration
 ```
-1. POST /auth/register/email/init     { email }           → create PendingSession + OTP → send email
-2. POST /auth/verify-otp              { sessionId, otp }  → verify OTP → mark session verified
-3. POST /auth/register/email/complete { sessionId, sponsorCode, address, signature, message }
-   → verify session → verify signature → check duplicates → validate sponsor → create user → issue tokens
+1. POST /auth/register/email/init     { email }           -> create PendingSession + OTP -> send email
+2. POST /auth/verify-otp              { sessionId, otp }  -> verify OTP -> mark session verified
+3. POST /auth/register/email/complete { sessionId, sponsorCode }
+   -> verify session -> validate sponsor -> create user -> issue tokens
 ```
 
 ### C) Telegram Registration
 ```
 1. POST /auth/register/telegram/init     { id, first_name, hash, auth_date, ... }
-   → verify HMAC → check duplicates → create PendingSession (verified=true)
-2. POST /auth/register/telegram/complete { sessionId, sponsorCode, address, signature, message }
-   → verify session → verify signature → check duplicates → validate sponsor → create user → issue tokens
+   -> verify HMAC -> check duplicates -> create PendingSession (verified=true)
+2. POST /auth/register/telegram/complete { sessionId, sponsorCode }
+   -> verify session -> validate sponsor -> create user -> issue tokens
 ```
 
 ## Login Flows
 
 ### A) Wallet Login
 ```
-1. POST /auth/login/wallet/challenge { address }           → create WalletChallenge with nonce
+1. POST /auth/login/wallet/challenge { address }           -> create WalletChallenge with nonce
 2. POST /auth/login/wallet/verify    { address, signature, message }
-   → verify message matches challenge → verify signature → find user → issue tokens
+   -> verify message matches challenge -> verify signature -> find user -> issue tokens
 ```
 
 ### B) Email Login
 ```
-1. POST /auth/login/email/init     { email }              → create PendingSession + OTP → send email
-2. POST /auth/verify-otp           { sessionId, otp }     → verify OTP
-3. POST /auth/login/email/complete { sessionId, address, signature, message }
-   → verify session → verify wallet matches user → issue tokens
+1. POST /auth/login/email/init     { email }              -> create PendingSession + OTP -> send email
+2. POST /auth/verify-otp           { sessionId, otp }     -> verify OTP
+3. POST /auth/login/email/complete { sessionId }
+   -> verify session -> find user -> issue tokens
 ```
 
 ### C) Telegram Login
 ```
-1. POST /auth/login/telegram/init     { id, hash, ... }   → verify HMAC → find user → create session
-2. POST /auth/login/telegram/complete { sessionId, address, signature, message }
-   → verify session → verify wallet matches user → issue tokens
+1. POST /auth/login/telegram/init     { id, hash, ... }   -> verify HMAC -> find user -> create session
+2. POST /auth/login/telegram/complete { sessionId }
+   -> verify session -> issue tokens
 ```
 
 ## Token Strategy
@@ -107,16 +107,6 @@ POST /auth/register/wallet
 - **Rotation**: On `/auth/refresh`, old refresh token is revoked, new one issued
 - **Logout**: `/auth/logout` revokes the refresh token
 - **Frontend storage**: `localStorage` (keys: `bitton_access_token`, `bitton_refresh_token`)
-
-## Uniqueness Rules
-
-| Field | Constraint |
-|-------|-----------|
-| email | Unique per User |
-| evmAddress | Unique per User |
-| telegramId | Unique per User |
-
-Race conditions handled via Prisma P2002 (unique constraint violation) → 409 Conflict.
 
 ## Sponsor / Referral
 

@@ -8,6 +8,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { API_BASE_URL } from "@/config/constants";
 import { InAppBrowserBanner } from "@/components/auth/InAppBrowserBanner";
 import { GatedConnectButton } from "@/components/auth/GatedConnectButton";
+import { LanguageSelector } from "@/components/ui/LanguageSelector";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 type AuthTab = "wallet" | "email" | "telegram";
 
@@ -35,6 +37,7 @@ function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAuthenticated, isLoading } = useAuth();
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<AuthTab>("wallet");
   const [agreed, setAgreed] = useState(false);
 
@@ -107,15 +110,18 @@ function RegisterContent() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 sm:p-8 max-w-md w-full">
-        <h2 className="text-2xl font-bold mb-2 text-center">Create Account</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-bold">{t("auth.createAccount")}</h2>
+          <LanguageSelector />
+        </div>
         <p className="text-gray-400 text-sm text-center mb-6">
-          Register to start using BitTON.AI
+          {t("auth.register")}
         </p>
 
         {/* Referral Code Input */}
         <div className={`mb-6 ${!agreed ? "opacity-40 pointer-events-none" : ""}`}>
           <label className="block text-xs text-gray-500 mb-1.5">
-            Referral Code <span className="text-red-400">*</span>
+            {t("auth.referralCode")} <span className="text-red-400">*</span>
           </label>
           <div className="flex gap-2">
             <input
@@ -130,7 +136,7 @@ function RegisterContent() {
                   localStorage.removeItem(REF_STORAGE_KEY);
                 }
               }}
-              placeholder="Enter referral code or wallet address"
+              placeholder={t("auth.enterReferral")}
               disabled={!agreed}
               className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm font-mono disabled:opacity-40 disabled:cursor-not-allowed"
             />
@@ -195,15 +201,15 @@ function RegisterContent() {
               className="mt-1 w-4 h-4 rounded border-gray-600 bg-gray-800 text-brand-600 focus:ring-brand-500 flex-shrink-0"
             />
             <span className="text-xs text-gray-400 leading-relaxed group-hover:text-gray-300">
-              <strong className="text-gray-300">Risk Disclaimer:</strong> Digital assets and blockchain-based products involve significant risk and may result in the loss of all invested funds. Past performance does not guarantee future results. BitTON.AI does not provide financial, investment, or legal advice. Users are solely responsible for their decisions and should carefully evaluate all risks before participating.
+              <strong className="text-gray-300">{t("auth.riskDisclaimer")}</strong> {t("auth.riskText")}
             </span>
           </label>
         </div>
 
         <p className="text-center text-sm text-gray-500 mt-4">
-          Already have an account?{" "}
+          {t("auth.haveAccount")}{" "}
           <Link href="/login" className="text-brand-400 hover:text-brand-300 underline">
-            Login
+            {t("auth.login")}
           </Link>
         </p>
       </div>
@@ -215,6 +221,7 @@ function RegisterContent() {
 // Wallet Register
 // ══════════════════════════════════════
 function WalletRegister({ agreed, sponsorCode, refValid }: { agreed: boolean; sponsorCode: string; refValid: boolean | null }) {
+  const { t } = useLanguage();
   const { isConnected, address } = useAccount();
   const { signMessageAsync } = useSignMessage();
   const { login } = useAuth();
@@ -280,7 +287,7 @@ function WalletRegister({ agreed, sponsorCode, refValid }: { agreed: boolean; sp
       <p className="text-sm text-gray-400">
         {loading
           ? "Confirm the signature in your wallet to register..."
-          : "Connect your EVM wallet to create an account."}
+          : t("auth.connectWalletCreate")}
       </p>
       <GatedConnectButton agreed={agreed} />
       {isConnected && !sponsorCode && (
@@ -289,7 +296,7 @@ function WalletRegister({ agreed, sponsorCode, refValid }: { agreed: boolean; sp
       {isConnected && !loading && sponsorCode && (
         <button onClick={handleSign} disabled={loading || !canSubmit}
           className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white py-3 rounded-lg font-medium transition-colors">
-          Sign & Register
+          {t("auth.signRegister")}
         </button>
       )}
       {loading && (

@@ -8,12 +8,15 @@ import { useAuth } from "@/contexts/AuthContext";
 import { API_BASE_URL } from "@/config/constants";
 import { InAppBrowserBanner } from "@/components/auth/InAppBrowserBanner";
 import { GatedConnectButton } from "@/components/auth/GatedConnectButton";
+import { LanguageSelector } from "@/components/ui/LanguageSelector";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 type AuthTab = "wallet" | "email" | "telegram";
 
 export default function LoginPage() {
   const { isAuthenticated } = useAuth();
   const router = useRouter();
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<AuthTab>("wallet");
   const [agreed, setAgreed] = useState(false);
 
@@ -21,18 +24,21 @@ export default function LoginPage() {
     if (isAuthenticated) router.replace("/dashboard");
   }, [isAuthenticated, router]);
 
-  const tabs: { key: AuthTab; label: string }[] = [
-    { key: "wallet", label: "EVM Wallet" },
-    { key: "email", label: "Email" },
-    { key: "telegram", label: "Telegram" },
+  const tabs: { key: AuthTab; tKey: string }[] = [
+    { key: "wallet", tKey: "auth.evmWallet" },
+    { key: "email", tKey: "auth.email" },
+    { key: "telegram", tKey: "auth.telegram" },
   ];
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 sm:p-8 max-w-md w-full">
-        <h2 className="text-2xl font-bold mb-2 text-center">Welcome to BitTON.AI</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-bold">{t("auth.welcome")}</h2>
+          <LanguageSelector />
+        </div>
         <p className="text-gray-400 text-sm text-center mb-6">
-          Sign in to your account
+          {t("auth.signIn")}
         </p>
 
         {/* Tabs */}
@@ -48,7 +54,7 @@ export default function LoginPage() {
                   : "text-gray-500 hover:text-gray-300"
               }`}
             >
-              {tab.label}
+              {t(tab.tKey)}
             </button>
           ))}
         </div>
@@ -70,15 +76,15 @@ export default function LoginPage() {
               className="mt-1 w-4 h-4 rounded border-gray-600 bg-gray-800 text-brand-600 focus:ring-brand-500 flex-shrink-0"
             />
             <span className="text-xs text-gray-400 leading-relaxed group-hover:text-gray-300">
-              <strong className="text-gray-300">Risk Disclaimer:</strong> Digital assets and blockchain-based products involve significant risk and may result in the loss of all invested funds. Past performance does not guarantee future results. BitTON.AI does not provide financial, investment, or legal advice. Users are solely responsible for their decisions and should carefully evaluate all risks before participating.
+              <strong className="text-gray-300">{t("auth.riskDisclaimer")}</strong> {t("auth.riskText")}
             </span>
           </label>
         </div>
 
         <p className="text-center text-sm text-gray-500 mt-4">
-          Don&apos;t have an account?{" "}
+          {t("auth.noAccount")}{" "}
           <Link href="/register" className="text-brand-400 hover:text-brand-300 underline">
-            Register
+            {t("auth.createAccount")}
           </Link>
         </p>
       </div>
@@ -215,11 +221,10 @@ function WalletLogin({ agreed }: { agreed: boolean }) {
 // Email Login
 // ══════════════════════════════════════
 function EmailLogin({ agreed }: { agreed: boolean }) {
-  const { isConnected, address } = useAccount();
-  const { signMessageAsync } = useSignMessage();
+  const { t } = useLanguage();
   const { login } = useAuth();
   const router = useRouter();
-  const [step, setStep] = useState<"email" | "otp" | "wallet">("email");
+  const [step, setStep] = useState<"email" | "otp">("email");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [sessionId, setSessionId] = useState("");
@@ -258,17 +263,31 @@ function EmailLogin({ agreed }: { agreed: boolean }) {
     setError("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
+      // First verify OTP
+      const verifyRes = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId, otp }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Invalid code");
+      const verifyData = await verifyRes.json();
+      if (!verifyRes.ok) {
+        setError(verifyData.error || "Invalid code");
         return;
       }
-      setStep("wallet");
+
+      // Then login directly (no wallet needed)
+      const res = await fetch(`${API_BASE_URL}/auth/login/email/direct`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Login failed");
+        return;
+      }
+      login(data.accessToken, data.refreshToken, data.user);
+      router.replace("/dashboard");
     } catch {
       setError("Unable to connect to server.");
     } finally {
@@ -298,45 +317,12 @@ function EmailLogin({ agreed }: { agreed: boolean }) {
     }
   };
 
-  const handleComplete = async () => {
-    if (!address || !agreed) return;
-    setLoading(true);
-    setError("");
-
-    try {
-      const timestamp = new Date().toISOString();
-      const message = `Sign this message to authenticate with BitTON.AI\n\nEmail: ${email}\nAddress: ${address}\nTimestamp: ${timestamp}`;
-      const signature = await signMessageAsync({ message });
-
-      const res = await fetch(`${API_BASE_URL}/auth/login/email/complete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, address, signature, message }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Login failed");
-        return;
-      }
-      login(data.accessToken, data.refreshToken, data.user);
-      router.replace("/dashboard");
-    } catch (err: any) {
-      if (err?.message?.includes("User rejected")) {
-        setError("Signature rejected.");
-      } else {
-        setError("Unable to connect to server.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="space-y-4">
       {/* Step indicator */}
       <div className="flex items-center justify-center gap-2 mb-2">
-        {["Email", "Verify", "Wallet"].map((label, i) => {
-          const currentIndex = step === "email" ? 0 : step === "otp" ? 1 : 2;
+        {["Email", "Verify"].map((label, i) => {
+          const currentIndex = step === "email" ? 0 : 1;
           return (
             <div key={label} className="flex items-center gap-2">
               <div
@@ -349,7 +335,7 @@ function EmailLogin({ agreed }: { agreed: boolean }) {
               <span className={`text-xs ${i <= currentIndex ? "text-white" : "text-gray-500"}`}>
                 {label}
               </span>
-              {i < 2 && <div className="w-6 h-px bg-gray-700" />}
+              {i < 1 && <div className="w-6 h-px bg-gray-700" />}
             </div>
           );
         })}
@@ -403,7 +389,7 @@ function EmailLogin({ agreed }: { agreed: boolean }) {
             disabled={loading || otp.length !== 6}
             className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed text-white py-2.5 rounded-lg font-medium"
           >
-            {loading ? "Verifying..." : "Verify Code"}
+            {loading ? "..." : t("auth.verifyLogin")}
           </button>
           <button
             type="button"
@@ -411,26 +397,9 @@ function EmailLogin({ agreed }: { agreed: boolean }) {
             disabled={loading}
             className="w-full text-sm text-gray-400 hover:text-white"
           >
-            Resend code
+            {t("auth.resendCode")}
           </button>
         </form>
-      )}
-
-      {step === "wallet" && (
-        <div className="space-y-4">
-          <p className="text-sm text-green-400">Email verified! Now connect your wallet.</p>
-          <InAppBrowserBanner />
-          <GatedConnectButton agreed={agreed} />
-          {isConnected && (
-            <button
-              onClick={handleComplete}
-              disabled={loading || !agreed}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white py-3 rounded-lg font-medium"
-            >
-              {loading ? "Signing in..." : "Sign & Login"}
-            </button>
-          )}
-        </div>
       )}
 
       {error && <p className="text-sm text-red-400">{error}</p>}
@@ -442,12 +411,9 @@ function EmailLogin({ agreed }: { agreed: boolean }) {
 // Telegram Login
 // ══════════════════════════════════════
 function TelegramLogin({ agreed }: { agreed: boolean }) {
-  const { isConnected, address } = useAccount();
-  const { signMessageAsync } = useSignMessage();
+  const { t } = useLanguage();
   const { login } = useAuth();
   const router = useRouter();
-  const [step, setStep] = useState<"telegram" | "wallet">("telegram");
-  const [sessionId, setSessionId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [botUsername, setBotUsername] = useState("");
@@ -468,7 +434,8 @@ function TelegramLogin({ agreed }: { agreed: boolean }) {
     setError("");
 
     try {
-      const res = await fetch(`${API_BASE_URL}/auth/login/telegram/init`, {
+      // Direct login — no wallet needed
+      const res = await fetch(`${API_BASE_URL}/auth/login/telegram/direct`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(telegramData),
@@ -478,17 +445,17 @@ function TelegramLogin({ agreed }: { agreed: boolean }) {
         setError(data.error || "Telegram auth failed");
         return;
       }
-      setSessionId(data.sessionId);
-      setStep("wallet");
+      login(data.accessToken, data.refreshToken, data.user);
+      router.replace("/dashboard");
     } catch {
       setError("Unable to connect to server.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [login, router]);
 
   useEffect(() => {
-    if (!botConfigured || !botUsername || step !== "telegram") return;
+    if (!botConfigured || !botUsername) return;
 
     (window as any).onTelegramAuthLogin = handleTelegramAuth;
 
@@ -508,40 +475,7 @@ function TelegramLogin({ agreed }: { agreed: boolean }) {
     return () => {
       delete (window as any).onTelegramAuthLogin;
     };
-  }, [botConfigured, botUsername, step, handleTelegramAuth]);
-
-  const handleComplete = async () => {
-    if (!address || !agreed) return;
-    setLoading(true);
-    setError("");
-
-    try {
-      const timestamp = new Date().toISOString();
-      const message = `Sign this message to authenticate with BitTON.AI\n\nAddress: ${address}\nTimestamp: ${timestamp}`;
-      const signature = await signMessageAsync({ message });
-
-      const res = await fetch(`${API_BASE_URL}/auth/login/telegram/complete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, address, signature, message }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || "Login failed");
-        return;
-      }
-      login(data.accessToken, data.refreshToken, data.user);
-      router.replace("/dashboard");
-    } catch (err: any) {
-      if (err?.message?.includes("User rejected")) {
-        setError("Signature rejected.");
-      } else {
-        setError("Unable to connect to server.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [botConfigured, botUsername, handleTelegramAuth]);
 
   if (!botConfigured) {
     return (
@@ -557,30 +491,16 @@ function TelegramLogin({ agreed }: { agreed: boolean }) {
 
   return (
     <div className="space-y-4">
-      {step === "telegram" && (
-        <div className="space-y-4">
-          <p className="text-sm text-gray-400">Log in with your Telegram account.</p>
-          <div id="telegram-login-container-login" className="flex justify-center" />
-          {loading && <p className="text-sm text-gray-400 text-center">Verifying...</p>}
-        </div>
-      )}
-
-      {step === "wallet" && (
-        <div className="space-y-4">
-          <p className="text-sm text-green-400">Telegram verified! Now connect your wallet.</p>
-          <InAppBrowserBanner />
-          <GatedConnectButton agreed={agreed} />
-          {isConnected && (
-            <button
-              onClick={handleComplete}
-              disabled={loading || !agreed}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white py-3 rounded-lg font-medium"
-            >
-              {loading ? "Signing in..." : "Sign & Login"}
-            </button>
-          )}
-        </div>
-      )}
+      <div className="space-y-4">
+        <p className="text-sm text-gray-400">{t("auth.telegramLogin")}</p>
+        <div id="telegram-login-container-login" className="flex justify-center" />
+        {loading && (
+          <div className="flex items-center justify-center gap-2 py-3">
+            <div className="w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm text-gray-400">Signing in...</span>
+          </div>
+        )}
+      </div>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
     </div>

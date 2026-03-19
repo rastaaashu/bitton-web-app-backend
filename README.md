@@ -1,124 +1,130 @@
-# BitTON.AI Backend API
+# BitTON.AI Staking Contracts
 
-Node.js + Express + Prisma + PostgreSQL backend for the BitTON.AI staking platform on Base L2.
+Smart contracts for the BitTON.AI dual-channel yield system on **Base** (Ethereum L2).
 
-## Tech Stack
+## Overview
 
-| Component | Technology |
-|-----------|-----------|
-| Runtime | Node.js + TypeScript |
-| Framework | Express.js |
-| ORM | Prisma |
-| Database | PostgreSQL (Neon serverless) |
-| Blockchain | ethers.js v6 |
-| Auth | JWT (HS256) + wallet signatures + OTP + Telegram |
-| Email | Resend / SendGrid / SMTP |
-| Validation | Zod schemas |
-| Logging | Winston |
+BitTON.AI offers three staking products with USDC deposits and dual-channel rewards (liquid + vested BTN). Users activate a vault tier, stake USDC into one of three products, and earn rewards settled into a liquid portion (BTN or USDC) and a vested portion (BTN with freeze + linear unlock).
 
-## Deployed
+## Staking Products
 
-- **URL**: https://bitton-backend.onrender.com
-- **Health**: https://bitton-backend.onrender.com/health
+| Product | Lock Period | Staking Token | Approx Yield | Reward Split (Liquid / Vested) |
+|---------|-------------|---------------|---------------|-------------------------------|
+| **Flex 30** | 30 days | USDC | ~7.5% per cycle | 50% / 50% |
+| **Boost 180** | 180 days | USDC | ~1% per day | 20% / 80% |
+| **Max 360** | 360 days | USDC | ~250% APR | 15% / 85% |
 
-## Features
+- **Flex 30**: Principal is returned at the end of the 30-day cycle.
+- **Boost 180**: Higher daily rate with longer lock; majority of rewards vest.
+- **Max 360**: Maximum yield over a full year; most rewards flow into vesting.
 
-- **Multi-method auth**: Wallet (RainbowKit), Email (OTP), Telegram -- all independent
-- **JWT sessions**: 15-min access + 7-day refresh with rotation
-- **Sponsor/referral system**: Code generation, validation, tracking
-- **Dashboard API**: Aggregated on-chain data from V2 contracts
-- **Admin API**: User management, system monitoring
-- **Migration pipeline**: TON to Base user balance migration
-- **Operator job queue**: Background jobs for on-chain transactions
+## Dual-Channel Rewards
 
-## V2 Contract Integration
+Rewards are split per product into two channels:
 
-The backend reads from and writes to the V2 smart contracts on Base Sepolia:
+- **Liquid channel**: Immediately withdrawable as BTN or USDC (converted at platform price).
+- **Vested channel**: BTN locked in VestingPool with a freeze period followed by linear daily release.
 
-| Contract | Address |
-|----------|---------|
-| BTN Token | `0x5b964baafEDf002e5364F37848DCa1908D3e4e9f` |
-| USDC Token | `0x69Bc9E30366888385f68cBB566EEb655CD5A34CC` |
-| VaultManager | `0xC5Ab43f26C1BacA8137cf4E4e1Ba98933D30C553` |
-| StakingVault | `0xf246C58FB64dAf6DA751Ea7d2c8db7d38E7a6C4B` |
-| RewardEngine | `0x97d1d86c709F4d5aEb93f46A60A16941c03076c0` |
-| VestingPool | `0x79D2CA5fb7ACF936198ec823a006a34cB611389e` |
-| WithdrawalWallet | `0xa523b6B9c3F2191C02ACfEc92C319D66315a3768` |
-| BonusEngine | `0x20189fFfa3B42B7D32b88376681D9c0Fec4A1eDC` |
-| ReserveFund | `0x8B7917daff5695461CFFDdCF5AA3dC7cC310793D` |
+### Vesting Schedules
 
-## API Endpoints Summary
+| Product | Freeze Period | Linear Release Period |
+|---------|---------------|-----------------------|
+| Flex 30 / Short vesting | 30 days | 60 days |
+| Boost 180 / Max 360 / Long vesting | 180 days | 180 days |
 
-### Auth (12+ endpoints)
-- Wallet: challenge -> verify -> JWT
-- Email: OTP init -> verify -> complete
-- Telegram: widget verify -> complete
-- Session: refresh, logout, profile
+## BTN Platform Price
 
-### Dashboard (5 endpoints)
-- `/api/dashboard/:address` -- full user dashboard
-- `/api/history/:address` -- transaction history
-- `/api/stakes/:address` -- active stakes
-- `/api/bonuses/:address` -- bonus history
-- `/api/referrals/:address` -- referral data
+BTN is valued at **$2.25** for all platform conversions (vault fees paid in BTN, USDC withdrawal conversions).
 
-### Sponsor (3 endpoints)
-- Create sponsor code, validate, bootstrap
+## USDC Staking
 
-### Admin (9 endpoints, API key required)
-- System status, user management, audit log
-- TON snapshot import, migration, job dispatch
+All three products accept **USDC** deposits. BTN staking is gated and reserved for future activation.
 
-### Health
-- `GET /health` -- DB + RPC + relayer check
-- `GET /ready` -- DB readiness probe
+## Reserve Fund
+
+A dedicated ReserveFund contract replaces the previous burn mechanism. Penalty fees, protocol reserves, and excess funds are routed to the ReserveFund rather than being burned.
+
+## Contracts
+
+| # | Contract | Type | Description |
+|---|----------|------|-------------|
+| 1 | **BTNToken** | ERC-20 (non-upgradeable) | BitTON token, 21M max supply, 6 decimals, mint/burn, EIP-2612 permit |
+| 2 | **VaultManager** | UUPS Proxy | Vault tier activation (T1/T2/T3), USDT or BTN payment, Chainlink oracle |
+| 3 | **StakingVault** | UUPS Proxy | 3 products (Flex30/Boost180/Max360), USDC+BTN deposits, per-product rates, btnEquivalent tracking |
+| 4 | **RewardEngine** | UUPS Proxy | Per-product reward splits (50/50, 20/80, 15/85), weekly settlement, compounding boost |
+| 5 | **VestingPool** | UUPS Proxy | Per-deposit vesting, freeze + linear release schedule, early unlock option |
+| 6 | **WithdrawalWallet** | UUPS Proxy | Dual-token withdrawal (BTN or USDC), platform price conversion |
+| 7 | **BonusEngine** | UUPS Proxy | Direct bonus (5% of stake), matching bonus (level-based), tier-gated depth |
+| 8 | **ReserveFund** | UUPS Proxy | Receives penalties and protocol reserves (replaces burns) |
+| 9 | **CustodialDistribution** | Non-upgradeable | BTN treasury distribution, batch migration, contract funding |
+
+## Project Structure
+
+```
+bitton-contracts/
+├── contracts/
+│   ├── BTNToken.sol
+│   ├── VaultManager.sol
+│   ├── StakingVault.sol
+│   ├── RewardEngine.sol
+│   ├── VestingPool.sol
+│   ├── WithdrawalWallet.sol
+│   ├── BonusEngine.sol
+│   ├── ReserveFund.sol
+│   ├── CustodialDistribution.sol
+│   └── interfaces/
+├── test/
+│   ├── StakingVault.test.js
+│   ├── RewardEngine.test.js
+│   ├── VestingPool.test.js
+│   ├── WithdrawalWallet.test.js
+│   ├── BonusEngine.test.js
+│   ├── ReserveFund.test.js
+│   └── ...
+├── scripts/
+│   ├── deploy-*.js
+│   └── ...
+├── docs/
+│   ├── 04_CONTRACTS_OVERVIEW.md
+│   ├── 06_MAINNET_READINESS.md
+│   └── ...
+├── tasks/
+│   ├── todo.md
+│   └── lessons.md
+├── hardhat.config.js
+└── package.json
+```
 
 ## Getting Started
 
-### Prerequisites
-- Node.js 18+
-- PostgreSQL (or Docker)
+### Compile
 
-### Setup
 ```bash
-cd backend
-npm install
-cp .env.example .env          # Edit with your values
-npx prisma generate
-npx prisma db push
-npm run dev                    # http://localhost:3001
+npx hardhat compile
 ```
 
-### Build
+### Test
+
 ```bash
-npm run build
-npm start
+npx hardhat test
 ```
 
-### Environment Variables
+**77 tests passing** across all contracts.
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `RPC_URL` | Yes | Base RPC endpoint |
-| `CHAIN_ID` | Yes | 84532 (Base Sepolia) |
-| `RELAYER_PRIVATE_KEY` | Yes | Hot wallet for on-chain txs |
-| `AUTH_SECRET` | Yes | JWT signing secret (64+ chars) |
-| `ADMIN_API_KEY` | Yes | Admin endpoint auth |
-| `APP_URL` | Yes | Frontend URL (CORS) |
-| `EMAIL_API_KEY` | Recommended | Resend/SendGrid API key |
-| `TELEGRAM_BOT_TOKEN` | Optional | Telegram auth |
+### Coverage
 
-## Security
+```bash
+npx hardhat coverage
+```
 
-- JWT with HS256, algorithm-pinned
-- bcrypt password hashing
-- Crypto-safe OTP generation
-- Timing-safe admin key comparison
-- Rate limiting: Global (100/min), Auth (20/15min), OTP (5/15min)
-- Helmet security headers (CSP, HSTS)
-- Zod input validation on all endpoints
-- Audit logging for all state changes
+## Technical Details
+
+- **Solidity**: 0.8.27
+- **Framework**: Hardhat
+- **Upgrade pattern**: OpenZeppelin UUPS Proxy (upgradeable contracts)
+- **Token library**: OpenZeppelin SafeERC20 for all ERC-20 transfers
+- **Security**: ReentrancyGuard, AccessControl (ADMIN / OPERATOR / EMERGENCY roles), Pausable
+- **Oracle**: Chainlink price feed with 1-hour staleness check
 
 ## License
 

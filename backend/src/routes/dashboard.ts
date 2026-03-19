@@ -5,6 +5,7 @@ import { blockCache } from "../utils/cache";
 import {
   getProvider,
   getBtnTokenContract,
+  getUsdcTokenContract,
   getVaultManagerContract,
   getStakingVaultContract,
   getVestingPoolContract,
@@ -14,6 +15,19 @@ import {
 } from "../config/contracts";
 
 const router = Router();
+
+// Product name mapping
+const PROGRAM_NAMES: Record<number, string> = {
+  0: "FLEX_30",
+  1: "BOOST_180",
+  2: "MAX_360",
+};
+
+const LOCK_DAYS: Record<number, number> = {
+  0: 30,
+  1: 180,
+  2: 360,
+};
 
 // Helper: validate Ethereum address
 function isValidAddress(address: string): boolean {
@@ -40,6 +54,7 @@ router.get("/dashboard/:address", async (req: Request, res: Response) => {
     const normalizedAddr = ethers.getAddress(address);
     const provider = getProvider();
     const btnToken = getBtnTokenContract();
+    const usdcToken = getUsdcTokenContract();
     const vaultManager = getVaultManagerContract();
     const stakingVault = getStakingVaultContract();
     const vestingPool = getVestingPoolContract();
@@ -50,6 +65,7 @@ router.get("/dashboard/:address", async (req: Request, res: Response) => {
     // Fetch all data in parallel for performance
     const [
       btnBalance,
+      usdcBalance,
       ethBalance,
       vaultActive,
       userTier,
@@ -57,11 +73,13 @@ router.get("/dashboard/:address", async (req: Request, res: Response) => {
       vestedBalance,
       pendingRelease,
       withdrawableBalance,
+      withdrawableUSDC,
       rewardPoolBalance,
       referrer,
       downline,
     ] = await Promise.all([
       btnToken.balanceOf(normalizedAddr).catch(() => BigInt(0)),
+      usdcToken.balanceOf(normalizedAddr).catch(() => BigInt(0)),
       provider.getBalance(normalizedAddr).catch(() => BigInt(0)),
       vaultManager.isVaultActive(normalizedAddr).catch(() => false),
       vaultManager.getUserTier(normalizedAddr).catch(() => 0),
@@ -69,29 +87,33 @@ router.get("/dashboard/:address", async (req: Request, res: Response) => {
       vestingPool.getVestedBalance(normalizedAddr).catch(() => BigInt(0)),
       vestingPool.getPendingRelease(normalizedAddr).catch(() => BigInt(0)),
       withdrawalWallet.getWithdrawableBalance(normalizedAddr).catch(() => BigInt(0)),
+      withdrawalWallet.getWithdrawableInUSDC(normalizedAddr).catch(() => BigInt(0)),
       rewardEngine.rewardPoolBalance().catch(() => BigInt(0)),
       bonusEngine.getReferrer(normalizedAddr).catch(() => ethers.ZeroAddress),
       bonusEngine.getDownline(normalizedAddr).catch(() => []),
     ]);
 
     // Calculate total staked and pending rewards across all stakes
-    let totalStaked = BigInt(0);
+    let totalStakedBTNEquiv = BigInt(0);
     let totalPendingRewards = BigInt(0);
     const formattedStakes = [];
 
     for (let i = 0; i < stakes.length; i++) {
       const stake = stakes[i];
       const amount = stake.amount ?? stake[0];
-      const startTime = stake.startTime ?? stake[1];
-      const programType = stake.programType ?? stake[2];
-      const lastRewardTime = stake.lastRewardTime ?? stake[3];
-      const isActive = stake.active ?? stake[4];
+      const btnEquivalent = stake.btnEquivalent ?? stake[1];
+      const startTime = stake.startTime ?? stake[2];
+      const programType = stake.programType ?? stake[3];
+      const lastRewardTime = stake.lastRewardTime ?? stake[4];
+      const isActive = stake.active ?? stake[5];
+      const isUSDC = stake.isUSDC ?? stake[6];
 
-      const lockDays = Number(programType) === 0 ? 30 : Number(programType) === 1 ? 180 : 360;
+      const pt = Number(programType);
+      const lockDays = LOCK_DAYS[pt] || 30;
       const endTime = Number(startTime) + lockDays * 86400;
 
       if (isActive) {
-        totalStaked += BigInt(amount);
+        totalStakedBTNEquiv += BigInt(btnEquivalent);
       }
 
       let pendingReward = BigInt(0);
@@ -107,7 +129,11 @@ router.get("/dashboard/:address", async (req: Request, res: Response) => {
       formattedStakes.push({
         index: i,
         amount: ethers.formatUnits(amount, 6),
-        programType: Number(programType) === 0 ? "EASY_START" : Number(programType) === 1 ? "SHORT" : "LONG",
+        btnEquivalent: ethers.formatUnits(btnEquivalent, 6),
+        programType: PROGRAM_NAMES[pt] || "UNKNOWN",
+        programTypeId: pt,
+        isUSDC: Boolean(isUSDC),
+        tokenSymbol: Boolean(isUSDC) ? "USDC" : "BTN",
         startTime: Number(startTime),
         endTime,
         active: Boolean(isActive),
@@ -122,8 +148,10 @@ router.get("/dashboard/:address", async (req: Request, res: Response) => {
       address: normalizedAddr,
       balances: {
         btn: ethers.formatUnits(btnBalance, 6),
+        usdc: ethers.formatUnits(usdcBalance, 6),
         eth: ethers.formatEther(ethBalance),
         withdrawable: ethers.formatUnits(withdrawableBalance, 6),
+        withdrawableUSDC: ethers.formatUnits(withdrawableUSDC, 6),
         vested: ethers.formatUnits(vestedBalance, 6),
         pendingVestingRelease: ethers.formatUnits(pendingRelease, 6),
       },
@@ -133,7 +161,7 @@ router.get("/dashboard/:address", async (req: Request, res: Response) => {
         tierName: tierNames[Number(userTier)] || "UNKNOWN",
       },
       staking: {
-        totalStaked: ethers.formatUnits(totalStaked, 6),
+        totalStakedBTNEquiv: ethers.formatUnits(totalStakedBTNEquiv, 6),
         totalPendingRewards: ethers.formatUnits(totalPendingRewards, 6),
         activeStakes: formattedStakes.filter((s) => s.active).length,
         stakes: formattedStakes,
@@ -183,8 +211,8 @@ router.get("/history/:address", async (req: Request, res: Response) => {
     const [
       stakeEvents,
       unstakeEvents,
-      unstakePenaltyEvents,
-      withdrawEvents,
+      withdrawBTNEvents,
+      withdrawUSDCEvents,
       vestingAddedEvents,
       vestingReleasedEvents,
       settlementEvents,
@@ -201,13 +229,13 @@ router.get("/history/:address", async (req: Request, res: Response) => {
         fromBlock,
         toBlock
       ).catch(() => []),
-      stakingVault.queryFilter(
-        stakingVault.filters.UnstakedWithPenalty(normalizedAddr),
+      withdrawalWallet.queryFilter(
+        withdrawalWallet.filters.WithdrawnAsBTN(normalizedAddr),
         fromBlock,
         toBlock
       ).catch(() => []),
       withdrawalWallet.queryFilter(
-        withdrawalWallet.filters.Withdrawn(normalizedAddr),
+        withdrawalWallet.filters.WithdrawnAsUSDC(normalizedAddr),
         fromBlock,
         toBlock
       ).catch(() => []),
@@ -217,49 +245,48 @@ router.get("/history/:address", async (req: Request, res: Response) => {
         toBlock
       ).catch(() => []),
       vestingPool.queryFilter(
-        vestingPool.filters.VestingReleased(normalizedAddr),
+        vestingPool.filters.VestedReleased(normalizedAddr),
         fromBlock,
         toBlock
       ).catch(() => []),
       rewardEngine.queryFilter(
-        rewardEngine.filters.WeeklySettlement(normalizedAddr),
+        rewardEngine.filters.RewardSettled(normalizedAddr),
         fromBlock,
         toBlock
       ).catch(() => []),
       bonusEngine.queryFilter(
-        bonusEngine.filters.DirectBonusPaid(normalizedAddr),
+        bonusEngine.filters.DirectBonusProcessed(normalizedAddr),
         fromBlock,
         toBlock
       ).catch(() => []),
       bonusEngine.queryFilter(
-        bonusEngine.filters.MatchingBonusPaid(normalizedAddr),
+        bonusEngine.filters.MatchingBonusProcessed(normalizedAddr),
         fromBlock,
         toBlock
       ).catch(() => []),
     ]);
 
-    // Collect all events into a flat list for batch processing
+    // Collect all events
     const allEvents = [
       ...stakeEvents.map((ev) => ({ ev, type: "STAKE" as const })),
       ...unstakeEvents.map((ev) => ({ ev, type: "UNSTAKE" as const })),
-      ...unstakePenaltyEvents.map((ev) => ({ ev, type: "UNSTAKE_PENALTY" as const })),
-      ...withdrawEvents.map((ev) => ({ ev, type: "WITHDRAWAL" as const })),
+      ...withdrawBTNEvents.map((ev) => ({ ev, type: "WITHDRAWAL_BTN" as const })),
+      ...withdrawUSDCEvents.map((ev) => ({ ev, type: "WITHDRAWAL_USDC" as const })),
       ...vestingAddedEvents.map((ev) => ({ ev, type: "VESTING_ADDED" as const })),
       ...vestingReleasedEvents.map((ev) => ({ ev, type: "VESTING_RELEASED" as const })),
-      ...settlementEvents.map((ev) => ({ ev, type: "WEEKLY_SETTLEMENT" as const })),
+      ...settlementEvents.map((ev) => ({ ev, type: "REWARD_SETTLED" as const })),
       ...directBonusEvents.map((ev) => ({ ev, type: "DIRECT_BONUS" as const })),
       ...matchingBonusEvents.map((ev) => ({ ev, type: "MATCHING_BONUS" as const })),
     ];
 
-    // Batch-fetch all unique block timestamps (with cache)
-    const BLOCK_CACHE_TTL = 60 * 60 * 1000; // 1 hour — block timestamps never change
+    // Batch-fetch block timestamps
+    const BLOCK_CACHE_TTL = 60 * 60 * 1000;
     const uniqueBlockNumbers = new Set<number>();
     for (const { ev } of allEvents) {
       const log = ev as ethers.EventLog;
       uniqueBlockNumbers.add(log.blockNumber);
     }
 
-    // Check cache first, fetch only uncached blocks
     const blockTimestampMap = new Map<number, number>();
     const uncachedBlocks: number[] = [];
     for (const bn of uniqueBlockNumbers) {
@@ -271,7 +298,6 @@ router.get("/history/:address", async (req: Request, res: Response) => {
       }
     }
 
-    // Fetch uncached blocks in parallel
     if (uncachedBlocks.length > 0) {
       const blocks = await Promise.all(
         uncachedBlocks.map((bn) => provider.getBlock(bn))
@@ -283,7 +309,7 @@ router.get("/history/:address", async (req: Request, res: Response) => {
       }
     }
 
-    // Format all events using the pre-fetched timestamp map
+    // Format events
     const history: any[] = [];
 
     for (const { ev, type } of allEvents) {
@@ -302,8 +328,9 @@ router.get("/history/:address", async (req: Request, res: Response) => {
             ...base,
             data: {
               amount: ethers.formatUnits(log.args[1], 6),
-              programType: Number(log.args[2]) === 0 ? "EASY_START" : Number(log.args[2]) === 1 ? "SHORT" : "LONG",
+              programType: PROGRAM_NAMES[Number(log.args[2])] || "UNKNOWN",
               stakeIndex: Number(log.args[3]),
+              isUSDC: Boolean(log.args[4]),
             },
           });
           break;
@@ -313,45 +340,52 @@ router.get("/history/:address", async (req: Request, res: Response) => {
             data: {
               principal: ethers.formatUnits(log.args[1], 6),
               stakeIndex: Number(log.args[2]),
+              isUSDC: Boolean(log.args[3]),
             },
           });
           break;
-        case "UNSTAKE_PENALTY":
+        case "WITHDRAWAL_BTN":
           history.push({
             ...base,
-            type: "UNSTAKE",
+            data: { amount: ethers.formatUnits(log.args[1], 6), token: "BTN" },
+          });
+          break;
+        case "WITHDRAWAL_USDC":
+          history.push({
+            ...base,
             data: {
-              returned: ethers.formatUnits(log.args[1], 6),
-              penalty: ethers.formatUnits(log.args[2], 6),
-              stakeIndex: Number(log.args[3]),
+              btnAmount: ethers.formatUnits(log.args[1], 6),
+              usdcAmount: ethers.formatUnits(log.args[2], 6),
+              token: "USDC",
             },
-          });
-          break;
-        case "WITHDRAWAL":
-          history.push({
-            ...base,
-            data: { amount: ethers.formatUnits(log.args[1], 6) },
           });
           break;
         case "VESTING_ADDED":
           history.push({
             ...base,
-            data: { amount: ethers.formatUnits(log.args[1], 6) },
+            data: {
+              amount: ethers.formatUnits(log.args[1], 6),
+              vestingType: Number(log.args[2]) === 0 ? "SHORT" : "LONG",
+            },
           });
           break;
         case "VESTING_RELEASED":
           history.push({
             ...base,
-            data: { amount: ethers.formatUnits(log.args[1], 6) },
+            data: {
+              amount: ethers.formatUnits(log.args[1], 6),
+              depositsProcessed: Number(log.args[2]),
+            },
           });
           break;
-        case "WEEKLY_SETTLEMENT":
+        case "REWARD_SETTLED":
           history.push({
             ...base,
             data: {
               totalReward: ethers.formatUnits(log.args[1], 6),
-              withdrawable: ethers.formatUnits(log.args[2], 6),
-              vested: ethers.formatUnits(log.args[3], 6),
+              liquidAmount: ethers.formatUnits(log.args[2], 6),
+              shortVestedAmount: ethers.formatUnits(log.args[3], 6),
+              longVestedAmount: ethers.formatUnits(log.args[4], 6),
             },
           });
           break;
@@ -360,7 +394,8 @@ router.get("/history/:address", async (req: Request, res: Response) => {
             ...base,
             data: {
               staker: log.args[1],
-              amount: ethers.formatUnits(log.args[2], 6),
+              stakeAmount: ethers.formatUnits(log.args[2], 6),
+              bonusAmount: ethers.formatUnits(log.args[3], 6),
             },
           });
           break;
@@ -377,7 +412,7 @@ router.get("/history/:address", async (req: Request, res: Response) => {
       }
     }
 
-    // Sort by block number descending (most recent first)
+    // Sort by block number descending
     history.sort((a, b) => b.blockNumber - a.blockNumber);
 
     res.json({

@@ -5,6 +5,9 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount, useChainId, useSwitchChain } from "wagmi";
 import { BASE_SEPOLIA_CHAIN_ID } from "@/config/constants";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { LanguageSelector } from "@/components/ui/LanguageSelector";
 import { truncateAddress } from "@/lib/format";
 
 export function Header() {
@@ -12,6 +15,8 @@ export function Header() {
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
   const { user, isAuthenticated, logout } = useAuth();
+  const { currency, toggleCurrency } = useCurrency();
+  const { t } = useLanguage();
   const router = useRouter();
   const isWrongNetwork = isConnected && chainId !== BASE_SEPOLIA_CHAIN_ID;
 
@@ -24,12 +29,12 @@ export function Header() {
     <header className="min-h-[4rem] border-b border-gray-800 flex flex-col">
       {isWrongNetwork && (
         <div className="bg-red-900/80 text-red-200 text-xs text-center py-1.5 px-4 flex items-center justify-center gap-3">
-          <span>Wrong network detected. Please switch to Base Sepolia.</span>
+          <span>{t("network.wrong")}</span>
           <button
             onClick={() => switchChain({ chainId: BASE_SEPOLIA_CHAIN_ID })}
             className="bg-red-700 hover:bg-red-600 text-white px-3 py-0.5 rounded text-xs font-medium transition-colors"
           >
-            Switch Network
+            {t("network.switch")}
           </button>
         </div>
       )}
@@ -53,13 +58,23 @@ export function Header() {
                 </span>
               )}
               <button
+                onClick={toggleCurrency}
+                className="text-xs font-medium bg-gray-800 hover:bg-gray-700 px-2 sm:px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap touch-manipulation border border-gray-700"
+                title="Toggle currency display"
+              >
+                <span className={currency === "BTN" ? "text-brand-400" : "text-gray-500"}>BTN</span>
+                <span className="text-gray-600 mx-0.5">/</span>
+                <span className={currency === "USD" ? "text-green-400" : "text-gray-500"}>USD</span>
+              </button>
+              <button
                 onClick={handleLogout}
                 className="text-xs text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 px-2 sm:px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap touch-manipulation"
               >
-                Logout
+                {t("auth.logout")}
               </button>
             </div>
           )}
+          <LanguageSelector compact />
           <div className="[&_button]:touch-manipulation [&_button]:!min-h-[40px]">
             <ConnectButton
               showBalance={false}

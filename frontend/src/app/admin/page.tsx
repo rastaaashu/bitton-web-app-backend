@@ -13,6 +13,7 @@ import {
 } from "@/hooks/useContracts";
 import { useApproveToken, useFundRewards } from "@/hooks/useContractWrite";
 import { formatBTN, parseBTN, tierName, truncateAddress } from "@/lib/format";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import VaultManagerABI from "@/abi/VaultManager.json";
 import StakingVaultABI from "@/abi/StakingVault.json";
 import RewardEngineABI from "@/abi/RewardEngine.json";
@@ -28,6 +29,7 @@ const wwAbi = WithdrawalWalletABI.abi as readonly unknown[];
 const beAbi = BonusEngineABI.abi as readonly unknown[];
 
 function UserLookup() {
+  const { formatAmount, label: currLabel } = useCurrency();
   const [lookupAddr, setLookupAddr] = useState("");
   const isValid = /^0x[a-fA-F0-9]{40}$/.test(lookupAddr);
 
@@ -116,25 +118,25 @@ function UserLookup() {
           <div className="bg-gray-800 rounded-lg p-3">
             <p className="text-gray-500 text-xs">Total Staked</p>
             <p className="font-medium">
-              {formatBTN(totalStaked as bigint | undefined)} BTN
+              {formatAmount(totalStaked as bigint | undefined)} {currLabel}
             </p>
           </div>
           <div className="bg-gray-800 rounded-lg p-3">
             <p className="text-gray-500 text-xs">Pending Rewards</p>
             <p className="font-medium">
-              {formatBTN(pendingRewards as bigint | undefined)} BTN
+              {formatAmount(pendingRewards as bigint | undefined)} {currLabel}
             </p>
           </div>
           <div className="bg-gray-800 rounded-lg p-3">
             <p className="text-gray-500 text-xs">Vested</p>
             <p className="font-medium">
-              {formatBTN(vestedBalance as bigint | undefined)} BTN
+              {formatAmount(vestedBalance as bigint | undefined)} {currLabel}
             </p>
           </div>
           <div className="bg-gray-800 rounded-lg p-3">
             <p className="text-gray-500 text-xs">Withdrawable</p>
             <p className="font-medium">
-              {formatBTN(withdrawable as bigint | undefined)} BTN
+              {formatAmount(withdrawable as bigint | undefined)} {currLabel}
             </p>
           </div>
           <div className="bg-gray-800 rounded-lg p-3">
@@ -160,6 +162,7 @@ function UserLookup() {
 }
 
 export default function AdminPage() {
+  const { formatAmount, label: currLabel } = useCurrency();
   const { isConnected, address } = useAccount();
   const { data: isAdmin, isLoading: adminLoading } = useHasAdminRole();
   const { data: rewardPool, isLoading: poolLoading, refetch: refetchPool } =
@@ -256,12 +259,12 @@ export default function AdminPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         <StatCard
           label="Global Total Staked"
-          value={`${formatBTN(globalStaked as bigint | undefined)} BTN`}
+          value={`${formatAmount(globalStaked as bigint | undefined)} ${currLabel}`}
           loading={stakedLoading}
         />
         <StatCard
           label="Reward Pool Balance"
-          value={`${formatBTN(rewardPool as bigint | undefined)} BTN`}
+          value={`${formatAmount(rewardPool as bigint | undefined)} ${currLabel}`}
           loading={poolLoading}
         />
         <StatCard

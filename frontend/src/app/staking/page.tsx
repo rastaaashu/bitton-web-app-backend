@@ -4,28 +4,30 @@ import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
 import { clsx } from "clsx";
 import { CONTRACTS } from "@/config/contracts";
-import { PROGRAM_CONFIGS } from "@/config/constants";
+import { PROGRAM_CONFIGS, BTN_PRICE_USD } from "@/config/constants";
 import {
-  useBTNBalance,
+  useUSDCBalance,
   useVaultStatus,
   useStakes,
   useAllowance,
 } from "@/hooks/useContracts";
-import { useApproveToken, useStake, useUnstake } from "@/hooks/useContractWrite";
+import { useApproveToken, useStakeUSDC, useUnstake } from "@/hooks/useContractWrite";
 import { formatBTN, parseBTN, formatDate, formatCountdown, tierName } from "@/lib/format";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { TxButton } from "@/components/ui/TxButton";
 import { Modal } from "@/components/ui/Modal";
 import type { StakeInfo } from "@/types";
 
 export default function StakingPage() {
   const { isConnected, address } = useAccount();
-  const { data: btnBalance } = useBTNBalance();
+  const { data: usdcBalance } = useUSDCBalance();
   const { isActive, tier } = useVaultStatus();
   const { data: stakesRaw, isLoading: stakesLoading, refetch: refetchStakes } = useStakes();
+  const { formatAmount, label: currLabel } = useCurrency();
   const stakes = (stakesRaw as StakeInfo[] | undefined) || [];
 
   const [amount, setAmount] = useState("");
-  const [programType, setProgramType] = useState<0 | 1>(0);
+  const [programType, setProgramType] = useState<0 | 1 | 2>(0);
   const [step, setStep] = useState<"idle" | "approve" | "stake">("idle");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [now, setNow] = useState(Math.floor(Date.now() / 1000));
@@ -35,12 +37,12 @@ export default function StakingPage() {
   const [showUnstakeModal, setShowUnstakeModal] = useState(false);
 
   const approveHook = useApproveToken();
-  const stakeHook = useStake();
+  const stakeHook = useStakeUSDC();
   const unstakeHook = useUnstake();
 
-  const parsedAmount = parseBTN(amount);
+  const parsedAmount = parseBTN(amount); // works for USDC too (6 decimals)
   const { data: allowance, refetch: refetchAllowance } = useAllowance(
-    CONTRACTS.btnToken,
+    CONTRACTS.usdcToken,
     CONTRACTS.stakingVault
   );
 
@@ -99,23 +101,18 @@ export default function StakingPage() {
 
   // Estimate rewards
   const config = PROGRAM_CONFIGS[programType];
-  const tierMultiplier =
-    programType === 1
-      ? 1.2
-      : tier === 3
-      ? 1.2
-      : tier === 2
-      ? 1.1
-      : 1.0;
-  const dailyRewardEstimate =
-    parseFloat(amount || "0") * config.dailyRate * tierMultiplier;
-  const weeklyRewardEstimate = dailyRewardEstimate * 7;
+  const amountNum = parseFloat(amount || "0");
+  const btnEquivalent = amountNum / BTN_PRICE_USD;
+  const dailyRewardBTN = btnEquivalent * config.dailyRateBps / 10_000;
+  const dailyRewardUSD = dailyRewardBTN * BTN_PRICE_USD;
+  const weeklyRewardUSD = dailyRewardUSD * 7;
+  const cycleRewardPct = (config.dailyRateBps / 100) * config.lockDays;
 
   if (!isConnected) {
     return (
       <div className="text-center py-20">
         <h2 className="text-2xl font-bold mb-4">Staking</h2>
-        <p className="text-gray-400">Connect your wallet to stake BTN.</p>
+        <p className="text-gray-400">Connect your wallet to stake.</p>
       </div>
     );
   }
@@ -124,7 +121,7 @@ export default function StakingPage() {
     <div>
       <h2 className="text-2xl font-bold mb-2">Staking</h2>
       <p className="text-gray-400 text-sm mb-6">
-        Stake BTN tokens to earn daily rewards. Choose between Short (30 days) or Long (180 days) programs.
+        Stake USDC to earn dual-channel rewards. Choose from Flex 30, Boost 180, or Max 360 products.
       </p>
 
       {!isActive && (
@@ -143,30 +140,29 @@ export default function StakingPage() {
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
           <h3 className="text-lg font-bold mb-4">New Stake</h3>
 
-          {/* Program Toggle */}
+          {/* Program Toggle — 3 Products */}
           <div className="flex gap-2 mb-4">
-            <button
-              onClick={() => setProgramType(0)}
-              className={clsx(
-                "flex-1 py-2 rounded-lg text-sm font-medium transition-colors",
-                programType === 0
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-800 text-gray-400 hover:text-white"
-              )}
-            >
-              Short (30d)
-            </button>
-            <button
-              onClick={() => setProgramType(1)}
-              className={clsx(
-                "flex-1 py-2 rounded-lg text-sm font-medium transition-colors",
-                programType === 1
-                  ? "bg-purple-600 text-white"
-                  : "bg-gray-800 text-gray-400 hover:text-white"
-              )}
-            >
-              Long (180d)
-            </button>
+            {([0, 1, 2] as const).map((pt) => {
+              const c = PROGRAM_CONFIGS[pt];
+              return (
+                <button
+                  key={pt}
+                  onClick={() => setProgramType(pt)}
+                  className={clsx(
+                    "flex-1 py-2 rounded-lg text-sm font-medium transition-colors",
+                    programType === pt
+                      ? pt === 0
+                        ? "bg-blue-600 text-white"
+                        : pt === 1
+                        ? "bg-purple-600 text-white"
+                        : "bg-amber-600 text-white"
+                      : "bg-gray-800 text-gray-400 hover:text-white"
+                  )}
+                >
+                  {c.name}
+                </button>
+              );
+            })}
           </div>
 
           {/* Amount Input */}
@@ -174,7 +170,7 @@ export default function StakingPage() {
             <input
               type="text"
               inputMode="decimal"
-              placeholder="Amount (BTN)"
+              placeholder="Amount (USDC)"
               value={amount}
               onChange={(e) => {
                 const val = e.target.value.replace(/[^0-9.]/g, "");
@@ -184,7 +180,7 @@ export default function StakingPage() {
             />
             <button
               onClick={() => {
-                const bal = btnBalance as bigint | undefined;
+                const bal = usdcBalance as bigint | undefined;
                 if (bal) setAmount(formatBTN(bal).replace(/,/g, ""));
               }}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-brand-400 hover:text-brand-300"
@@ -194,60 +190,75 @@ export default function StakingPage() {
           </div>
 
           <p className="text-xs text-gray-500 mb-4">
-            Balance: {formatBTN(btnBalance as bigint | undefined)} BTN
+            Balance: {formatBTN(usdcBalance as bigint | undefined)} USDC
           </p>
 
           {/* Estimates */}
           <div className="bg-gray-800/50 rounded-lg p-3 mb-4 space-y-1 text-sm">
             <div className="flex justify-between text-gray-400">
+              <span>Product</span>
+              <span className="text-white font-medium">{config.fullName}</span>
+            </div>
+            <div className="flex justify-between text-gray-400">
+              <span>Duration</span>
+              <span>{config.lockDays} days</span>
+            </div>
+            <div className="flex justify-between text-gray-400">
               <span>Daily Rate</span>
-              <span>{(config.dailyRate * 100).toFixed(1)}%</span>
+              <span>{config.dailyRatePercent}%</span>
             </div>
             <div className="flex justify-between text-gray-400">
-              <span>Multiplier ({programType === 1 ? "Long" : tierName(tier)})</span>
-              <span>{tierMultiplier}x</span>
-            </div>
-            <div className="flex justify-between text-gray-400">
-              <span>Est. Daily Reward</span>
-              <span className="text-green-400">
-                ~{dailyRewardEstimate.toFixed(2)} BTN
-              </span>
+              <span>Est. Cycle Return</span>
+              <span className="text-green-400">~{cycleRewardPct.toFixed(1)}%</span>
             </div>
             <div className="flex justify-between text-gray-400">
               <span>Est. Weekly Reward</span>
-              <span className="text-green-400">
-                ~{weeklyRewardEstimate.toFixed(2)} BTN
+              <span className="text-green-400">~${weeklyRewardUSD.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-gray-400 pt-1 border-t border-gray-700">
+              <span>Reward Split</span>
+              <span>
+                {config.liquidSplitPct}% liquid / {config.vestedSplitPct}% vested
               </span>
+            </div>
+            <div className="flex justify-between text-gray-400">
+              <span>Principal</span>
+              <span>{config.principalReturned ? "Returned at end" : "Distributed in rewards"}</span>
             </div>
             {config.earlyExitAllowed && (
               <div className="flex justify-between text-yellow-400 text-xs pt-1 border-t border-gray-700">
                 <span>Early Exit Penalty</span>
-                <span>15%</span>
+                <span>{config.earlyExitPenaltyBps / 100}%</span>
               </div>
             )}
           </div>
+
+          {/* Balance / amount validation */}
+          {parsedAmount > 0n && (usdcBalance as bigint || 0n) > 0n && parsedAmount > (usdcBalance as bigint || 0n) && (
+            <p className="text-xs text-red-400 mb-2">Amount exceeds your USDC balance.</p>
+          )}
 
           {/* Action Buttons */}
           {step === "idle" && (
             <button
               onClick={handleStartStake}
-              disabled={!isActive || parsedAmount <= 0n || isSubmitting}
+              disabled={!isActive || parsedAmount <= 0n || isSubmitting || parsedAmount > (usdcBalance as bigint || 0n)}
               className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2.5 rounded-lg font-medium transition-colors"
             >
-              Stake {config.name.split(" ")[0]}
+              Stake USDC into {config.name}
             </button>
           )}
 
           {step === "approve" && (
             <TxButton
-              label={`Approve ${amount} BTN`}
+              label={`Approve ${amount} USDC`}
               pendingLabel="Approving..."
               onClick={() => {
                 if (isSubmitting) return;
                 setIsSubmitting(true);
                 try {
                   approveHook.approve(
-                    CONTRACTS.btnToken,
+                    CONTRACTS.usdcToken,
                     CONTRACTS.stakingVault,
                     parsedAmount
                   );
@@ -287,6 +298,13 @@ export default function StakingPage() {
             />
           )}
 
+          {/* Error display */}
+          {(approveHook.error || stakeHook.error) && (
+            <p className="text-xs text-red-400 mt-2">
+              {(approveHook.error as any)?.shortMessage || (stakeHook.error as any)?.shortMessage || "Transaction failed. Please check your vault is active and you have enough USDC."}
+            </p>
+          )}
+
           {step !== "idle" && (
             <button
               onClick={() => {
@@ -301,11 +319,11 @@ export default function StakingPage() {
           )}
         </div>
 
-        {/* Info Panel */}
+        {/* Info Panel — 3 Products */}
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-          <h3 className="text-lg font-bold mb-4">Program Details</h3>
+          <h3 className="text-lg font-bold mb-4">Product Details</h3>
           <div className="space-y-4">
-            {([0, 1] as const).map((pt) => {
+            {([0, 1, 2] as const).map((pt) => {
               const c = PROGRAM_CONFIGS[pt];
               return (
                 <div
@@ -317,15 +335,17 @@ export default function StakingPage() {
                       : "border-gray-800"
                   )}
                 >
-                  <h4 className="font-medium mb-2">{c.name}</h4>
+                  <h4 className="font-medium mb-2">{c.fullName}</h4>
                   <ul className="text-sm text-gray-400 space-y-1">
-                    <li>Lock Period: {c.lockDays} days</li>
-                    <li>Daily Rate: {(c.dailyRate * 100).toFixed(1)}%</li>
-                    <li>Multiplier: {c.multiplierNote}</li>
+                    <li>Duration: {c.lockDays} days</li>
+                    <li>Daily Rate: {c.dailyRatePercent}% ({c.aprEstimate} APR)</li>
+                    <li>Reward Split: {c.liquidSplitPct}% liquid / {c.vestedSplitPct}% vested</li>
+                    <li>Vesting: {c.vestingType === "short" ? "30d freeze + 60d linear" : "180d freeze + 180d linear"}</li>
+                    <li>Principal: {c.principalReturned ? "Returned" : "Distributed in rewards"}</li>
                     <li>
                       Early Exit:{" "}
                       {c.earlyExitAllowed
-                        ? `Allowed (${c.earlyExitPenaltyBps / 100}% penalty)`
+                        ? `Allowed (${c.earlyExitPenaltyBps / 100}% penalty → Reserve Fund)`
                         : "Not allowed"}
                     </li>
                   </ul>
@@ -354,10 +374,9 @@ export default function StakingPage() {
             <thead>
               <tr className="border-b border-gray-800 text-gray-400">
                 <th className="text-left px-4 py-3 font-medium">#</th>
-                <th className="text-left px-4 py-3 font-medium">Type</th>
+                <th className="text-left px-4 py-3 font-medium">Product</th>
                 <th className="text-left px-4 py-3 font-medium">Amount</th>
                 <th className="text-left px-4 py-3 font-medium">Started</th>
-                <th className="text-left px-4 py-3 font-medium">Lock End</th>
                 <th className="text-left px-4 py-3 font-medium">Time Left</th>
                 <th className="text-left px-4 py-3 font-medium">Status</th>
                 <th className="text-left px-4 py-3 font-medium">Action</th>
@@ -366,11 +385,11 @@ export default function StakingPage() {
             <tbody>
               {stakes.map((stake, index) => {
                 const c =
-                  PROGRAM_CONFIGS[stake.programType as 0 | 1] ||
+                  PROGRAM_CONFIGS[stake.programType as 0 | 1 | 2] ||
                   PROGRAM_CONFIGS[0];
                 const lockEnd = Number(stake.startTime) + c.lockSeconds;
                 const remaining = lockEnd - now;
-                const isLocked = remaining > 0;
+                const tokenLabel = stake.isUSDC ? "USDC" : "BTN";
 
                 return (
                   <tr
@@ -386,20 +405,19 @@ export default function StakingPage() {
                         className={
                           stake.programType === 0
                             ? "text-blue-400"
-                            : "text-purple-400"
+                            : stake.programType === 1
+                            ? "text-purple-400"
+                            : "text-amber-400"
                         }
                       >
                         {c.name}
                       </span>
                     </td>
                     <td className="px-4 py-3 font-medium">
-                      {formatBTN(stake.amount)} BTN
+                      {stake.isUSDC ? formatBTN(stake.amount) : formatAmount(stake.amount)} {stake.isUSDC ? "USDC" : currLabel}
                     </td>
                     <td className="px-4 py-3 text-gray-400">
                       {formatDate(stake.startTime)}
-                    </td>
-                    <td className="px-4 py-3 text-gray-400">
-                      {formatDate(BigInt(lockEnd))}
                     </td>
                     <td className="px-4 py-3">
                       {stake.active ? (
@@ -464,43 +482,48 @@ export default function StakingPage() {
             {(() => {
               const s = stakes[unstakeIndex];
               const c =
-                PROGRAM_CONFIGS[s.programType as 0 | 1] || PROGRAM_CONFIGS[0];
+                PROGRAM_CONFIGS[s.programType as 0 | 1 | 2] || PROGRAM_CONFIGS[0];
               const lockEnd = Number(s.startTime) + c.lockSeconds;
               const isEarlyExit = now < lockEnd;
+              const tokenLabel = s.isUSDC ? "USDC" : "BTN";
 
               return (
                 <div className="space-y-4">
                   <div className="bg-gray-800 rounded-lg p-3 space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-gray-400">Stake Amount</span>
-                      <span>{formatBTN(s.amount)} BTN</span>
+                      <span>{s.isUSDC ? formatBTN(s.amount) : formatAmount(s.amount)} {s.isUSDC ? "USDC" : currLabel}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-400">Program</span>
-                      <span>{c.name}</span>
+                      <span className="text-gray-400">Product</span>
+                      <span>{c.fullName}</span>
                     </div>
-                    {isEarlyExit && s.programType === 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Principal</span>
+                      <span>{c.principalReturned ? "Returned to you" : "Sent to treasury"}</span>
+                    </div>
+                    {isEarlyExit && c.earlyExitAllowed && (
                       <div className="flex justify-between text-yellow-400">
                         <span>Early Exit Penalty (15%)</span>
                         <span>
-                          -{formatBTN((s.amount * 15n) / 100n)} BTN
+                          -{s.isUSDC ? formatBTN((s.amount * 15n) / 100n) : formatAmount((s.amount * 15n) / 100n)} {s.isUSDC ? "USDC" : currLabel}
                         </span>
                       </div>
                     )}
-                    {isEarlyExit && s.programType === 1 && (
+                    {isEarlyExit && !c.earlyExitAllowed && (
                       <p className="text-red-400 text-xs">
-                        Long stakes cannot be exited early. Lock period has not ended.
+                        This product cannot be exited early. Lock period has not ended.
                       </p>
                     )}
                   </div>
 
-                  {isEarlyExit && s.programType === 0 && (
+                  {isEarlyExit && c.earlyExitAllowed && (
                     <p className="text-yellow-400 text-xs">
-                      Warning: Early exit incurs a 15% penalty on your staked amount. The penalty goes to the treasury.
+                      Warning: Early exit incurs a 15% penalty. Penalty goes to the Reserve Fund.
                     </p>
                   )}
 
-                  {(!isEarlyExit || s.programType === 0) && (
+                  {(!isEarlyExit || c.earlyExitAllowed) && (
                     <TxButton
                       label="Confirm Unstake"
                       pendingLabel="Unstaking..."

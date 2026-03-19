@@ -76,8 +76,8 @@ export function useActivateVault() {
   };
 }
 
-// ─── Stake ───
-export function useStake() {
+// ─── Stake USDC ───
+export function useStakeUSDC() {
   const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
   useInvalidateOnSuccess(isSuccess);
@@ -87,7 +87,30 @@ export function useStake() {
       writeContract({
         address: CONTRACTS.stakingVault,
         abi: svAbi,
-        functionName: "stake",
+        functionName: "stakeUSDC",
+        args: [amount, programType],
+      }),
+    isPending: isPending || isConfirming,
+    isSuccess,
+    isError: !!error,
+    error,
+    hash,
+    reset,
+  };
+}
+
+// ─── Stake BTN (disabled by default on contract, for future use) ───
+export function useStakeBTN() {
+  const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  useInvalidateOnSuccess(isSuccess);
+
+  return {
+    stake: (amount: bigint, programType: number) =>
+      writeContract({
+        address: CONTRACTS.stakingVault,
+        abi: svAbi,
+        functionName: "stakeBTN",
         args: [amount, programType],
       }),
     isPending: isPending || isConfirming,
@@ -168,8 +191,8 @@ export function useReleaseVesting() {
   };
 }
 
-// ─── Withdraw ───
-export function useWithdraw() {
+// ─── Withdraw as BTN ───
+export function useWithdrawAsBTN() {
   const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
   useInvalidateOnSuccess(isSuccess);
@@ -179,8 +202,31 @@ export function useWithdraw() {
       writeContract({
         address: CONTRACTS.withdrawalWallet,
         abi: wwAbi,
-        functionName: "withdraw",
+        functionName: "withdrawAsBTN",
         args: [amount],
+      }),
+    isPending: isPending || isConfirming,
+    isSuccess,
+    isError: !!error,
+    error,
+    hash,
+    reset,
+  };
+}
+
+// ─── Withdraw as USDC ───
+export function useWithdrawAsUSDC() {
+  const { writeContract, data: hash, isPending, error, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
+  useInvalidateOnSuccess(isSuccess);
+
+  return {
+    withdraw: (btnAmount: bigint) =>
+      writeContract({
+        address: CONTRACTS.withdrawalWallet,
+        abi: wwAbi,
+        functionName: "withdrawAsUSDC",
+        args: [btnAmount],
       }),
     isPending: isPending || isConfirming,
     isSuccess,

@@ -30,16 +30,21 @@ export function useBTNBalance() {
   });
 }
 
-// ─── USDT Balance ───
-export function useUSDTBalance() {
+// ─── USDC Balance ───
+export function useUSDCBalance() {
   const { address } = useAccount();
   return useReadContract({
-    address: CONTRACTS.usdtToken,
+    address: CONTRACTS.usdcToken,
     abi: btnAbi, // same ERC20 interface
     functionName: "balanceOf",
     args: address ? [address] : undefined,
     query: { enabled: !!address, refetchInterval: 10000 },
   });
+}
+
+// ─── USDT Balance (backward compat alias) ───
+export function useUSDTBalance() {
+  return useUSDCBalance();
 }
 
 // ─── Vault Status ───
@@ -93,7 +98,7 @@ export function useStakes() {
   });
 }
 
-// ─── Total Staked (user) ───
+// ─── Total Staked (user, in BTN equivalent) ───
 export function useTotalStaked() {
   const { address } = useAccount();
   return useReadContract({
@@ -105,12 +110,22 @@ export function useTotalStaked() {
   });
 }
 
-// ─── Global Total Staked ───
+// ─── Global Total Staked (BTN) ───
 export function useGlobalTotalStaked() {
   return useReadContract({
     address: CONTRACTS.stakingVault,
     abi: svAbi,
     functionName: "totalStaked",
+    query: { refetchInterval: 30000 },
+  });
+}
+
+// ─── Global Total Staked USDC ───
+export function useGlobalTotalStakedUSDC() {
+  return useReadContract({
+    address: CONTRACTS.stakingVault,
+    abi: svAbi,
+    functionName: "totalStakedUSDC",
     query: { refetchInterval: 30000 },
   });
 }
@@ -139,6 +154,18 @@ export function useWithdrawableBalance() {
   });
 }
 
+// ─── Withdrawable Balance in USDC ───
+export function useWithdrawableInUSDC() {
+  const { address } = useAccount();
+  return useReadContract({
+    address: CONTRACTS.withdrawalWallet,
+    abi: wwAbi,
+    functionName: "getWithdrawableInUSDC",
+    args: address ? [address] : undefined,
+    query: { enabled: !!address, refetchInterval: 10000 },
+  });
+}
+
 // ─── Vested Balance ───
 export function useVestedBalance() {
   const { address } = useAccount();
@@ -156,22 +183,22 @@ export function useVestedBalance() {
     args: address ? [address] : undefined,
     query: { enabled: !!address, refetchInterval: 10000 },
   });
-  const lastRelease = useReadContract({
+  const depositCount = useReadContract({
     address: CONTRACTS.vestingPool,
     abi: vpAbi,
-    functionName: "lastReleaseTime",
+    functionName: "getDepositCount",
     args: address ? [address] : undefined,
-    query: { enabled: !!address },
+    query: { enabled: !!address, refetchInterval: 10000 },
   });
   return {
     vestedBalance: balance.data as bigint | undefined,
     pendingRelease: pending.data as bigint | undefined,
-    lastReleaseTime: lastRelease.data as bigint | undefined,
+    depositCount: depositCount.data as bigint | undefined,
     isLoading: balance.isLoading || pending.isLoading,
     refetch: () => {
       balance.refetch();
       pending.refetch();
-      lastRelease.refetch();
+      depositCount.refetch();
     },
   };
 }

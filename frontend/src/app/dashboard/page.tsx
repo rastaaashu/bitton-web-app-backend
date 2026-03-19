@@ -99,16 +99,16 @@ export default function DashboardPage() {
       {!vaultLoading && !isActive && (
         <div className="bg-yellow-900/30 border border-yellow-700/50 rounded-xl p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div>
-            <p className="text-yellow-300 font-medium">Vault Not Activated</p>
+            <p className="text-yellow-300 font-medium">{t("vault.notActivated")}</p>
             <p className="text-yellow-400/70 text-sm">
-              Activate your vault to start earning staking rewards and bonuses.
+              {t("vault.activateDescription")}
             </p>
           </div>
           <Link
             href="/vault"
             className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap"
           >
-            Activate Now
+            {t("vault.activateNow")}
           </Link>
         </div>
       )}

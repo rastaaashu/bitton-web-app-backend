@@ -29,12 +29,12 @@ export function Header() {
     <header className="min-h-[4rem] border-b border-gray-800 flex flex-col">
       {isWrongNetwork && (
         <div className="bg-red-900/80 text-red-200 text-xs text-center py-1.5 px-4 flex items-center justify-center gap-3">
-          <span>Wrong network detected. Please switch to Base Sepolia.</span>
+          <span>{t("network.wrong")}</span>
           <button
             onClick={() => switchChain({ chainId: BASE_SEPOLIA_CHAIN_ID })}
             className="bg-red-700 hover:bg-red-600 text-white px-3 py-0.5 rounded text-xs font-medium transition-colors"
           >
-            Switch Network
+            {t("network.switch")}
           </button>
         </div>
       )}

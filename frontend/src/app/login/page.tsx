@@ -76,7 +76,7 @@ export default function LoginPage() {
               className="mt-1 w-4 h-4 rounded border-gray-600 bg-gray-800 text-brand-600 focus:ring-brand-500 flex-shrink-0"
             />
             <span className="text-xs text-gray-400 leading-relaxed group-hover:text-gray-300">
-              <strong className="text-gray-300">Risk Disclaimer:</strong> Digital assets and blockchain-based products involve significant risk and may result in the loss of all invested funds. Past performance does not guarantee future results. BitTON.AI does not provide financial, investment, or legal advice. Users are solely responsible for their decisions and should carefully evaluate all risks before participating.
+              <strong className="text-gray-300">{t("auth.riskDisclaimer")}</strong> {t("auth.riskText")}
             </span>
           </label>
         </div>
@@ -221,6 +221,7 @@ function WalletLogin({ agreed }: { agreed: boolean }) {
 // Email Login
 // ══════════════════════════════════════
 function EmailLogin({ agreed }: { agreed: boolean }) {
+  const { t } = useLanguage();
   const { login } = useAuth();
   const router = useRouter();
   const [step, setStep] = useState<"email" | "otp">("email");
@@ -388,7 +389,7 @@ function EmailLogin({ agreed }: { agreed: boolean }) {
             disabled={loading || otp.length !== 6}
             className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed text-white py-2.5 rounded-lg font-medium"
           >
-            {loading ? "Verifying & Logging in..." : "Verify & Login"}
+            {loading ? "..." : t("auth.verifyLogin")}
           </button>
           <button
             type="button"
@@ -396,7 +397,7 @@ function EmailLogin({ agreed }: { agreed: boolean }) {
             disabled={loading}
             className="w-full text-sm text-gray-400 hover:text-white"
           >
-            Resend code
+            {t("auth.resendCode")}
           </button>
         </form>
       )}
@@ -410,6 +411,7 @@ function EmailLogin({ agreed }: { agreed: boolean }) {
 // Telegram Login
 // ══════════════════════════════════════
 function TelegramLogin({ agreed }: { agreed: boolean }) {
+  const { t } = useLanguage();
   const { login } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -490,7 +492,7 @@ function TelegramLogin({ agreed }: { agreed: boolean }) {
   return (
     <div className="space-y-4">
       <div className="space-y-4">
-        <p className="text-sm text-gray-400">Log in with your Telegram account.</p>
+        <p className="text-sm text-gray-400">{t("auth.telegramLogin")}</p>
         <div id="telegram-login-container-login" className="flex justify-center" />
         {loading && (
           <div className="flex items-center justify-center gap-2 py-3">

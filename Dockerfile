@@ -2,12 +2,12 @@ FROM node:20
 
 WORKDIR /app
 
-COPY package*.json ./
+COPY backend/package*.json ./
 RUN npm install
 
-COPY . .
+COPY ./backend .
 
-#RUN npx prisma generate
+RUN npx prisma generate
 RUN npm run build
 
 EXPOSE 3000

@@ -18,6 +18,7 @@ import dashboardRouter from "./routes/dashboard";
 import contractsRouter from "./routes/contracts";
 
 const app = express();
+app.set("trust proxy", 1);
 
 // Middleware
 app.use(

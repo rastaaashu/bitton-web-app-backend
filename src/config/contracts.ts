@@ -93,6 +93,7 @@ export const WITHDRAWAL_WALLET_ABI = [
 ];
 
 export const BONUS_ENGINE_ABI = [
+  "function processDirectBonus(address staker, uint256 stakeAmount) external",
   "function getReferrer(address user) view returns (address)",
   "function getDownline(address user) view returns (address[])",
   "event ReferrerRegistered(address indexed user, address indexed referrer)",

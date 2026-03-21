@@ -7,6 +7,7 @@ import { env } from "./config/env";
 import { logger } from "./utils/logger";
 import { prisma } from "./utils/prisma";
 import { operatorRunner } from "./jobs/operator.runner";
+import { bonusProcessor } from "./jobs/bonus.processor";
 
 // Routes
 import healthRouter from "./routes/health";
@@ -169,12 +170,16 @@ async function main() {
     operatorRunner.start().catch((err) => {
       logger.error("Operator runner crashed:", err);
     });
+    bonusProcessor.start().catch((err) => {
+      logger.error("Bonus processor crashed:", err);
+    });
   }
 
   // Graceful shutdown
   const shutdown = async () => {
     logger.info("Shutting down...");
     operatorRunner.stop();
+    bonusProcessor.stop();
     server.close();
     await prisma.$disconnect();
     process.exit(0);

@@ -1,6 +1,5 @@
 import { ethers } from "ethers";
 import { logger } from "../utils/logger";
-import { env } from "../config/env";
 import {
   getProvider,
   getStakingVaultContract,
@@ -9,6 +8,7 @@ import {
 } from "../config/contracts";
 
 const POLL_INTERVAL_MS = 30_000; // Check every 30 seconds
+const MAX_BLOCK_RANGE = 1000; // Max blocks to scan per poll (RPC limit safe)
 let lastProcessedBlock = 0;
 
 /**
@@ -16,6 +16,8 @@ let lastProcessedBlock = 0;
  *
  * Listens for Staked events on StakingVault and triggers
  * BonusEngine.processDirectBonus() for the 5% referral bonus.
+ *
+ * Scans in chunks of MAX_BLOCK_RANGE to avoid RPC query limits.
  */
 export class BonusProcessor {
   private running = false;
@@ -23,7 +25,7 @@ export class BonusProcessor {
   async start(): Promise<void> {
     this.running = true;
 
-    // Start from current block
+    // Start from current block (only process new events going forward)
     const provider = getProvider();
     lastProcessedBlock = await provider.getBlockNumber();
     logger.info(`Bonus processor started at block ${lastProcessedBlock}`);
@@ -49,50 +51,48 @@ export class BonusProcessor {
 
     if (currentBlock <= lastProcessedBlock) return;
 
+    // Limit range to MAX_BLOCK_RANGE to avoid RPC errors
+    const fromBlock = lastProcessedBlock + 1;
+    const toBlock = Math.min(fromBlock + MAX_BLOCK_RANGE - 1, currentBlock);
+
     const stakingVault = getStakingVaultContract(provider);
     const signer = getRelayerSigner();
     const bonusEngine = getBonusEngineContract(signer);
 
-    // Query Staked events from last processed block to current
-    const filter = stakingVault.filters.Staked();
-    const events = await stakingVault.queryFilter(
-      filter,
-      lastProcessedBlock + 1,
-      currentBlock
-    );
+    try {
+      const filter = stakingVault.filters.Staked();
+      const events = await stakingVault.queryFilter(filter, fromBlock, toBlock);
 
-    for (const event of events) {
-      try {
-        const args = event.args;
-        if (!args) continue;
+      for (const event of events) {
+        try {
+          const args = event.args;
+          if (!args) continue;
 
-        const staker = args[0]; // user address
-        const amount = args[1]; // stake amount
-        const btnEquivalent = amount; // for BTN stakes, amount = btnEquivalent
+          const staker = args[0];
+          const amount = args[1];
 
-        // Check if staker has a referrer on-chain
-        const referrer = await bonusEngine.getReferrer(staker);
-        if (referrer === ethers.ZeroAddress) {
-          // No on-chain referrer — skip
-          continue;
+          // Check if staker has a referrer on-chain
+          const referrer = await bonusEngine.getReferrer(staker);
+          if (referrer === ethers.ZeroAddress) continue;
+
+          logger.info(`Processing direct bonus: staker=${staker}, amount=${ethers.formatUnits(amount, 6)} BTN`);
+          const tx = await bonusEngine.processDirectBonus(staker, amount);
+          const receipt = await tx.wait();
+          logger.info(`Direct bonus processed: tx=${receipt.hash}`);
+        } catch (err: any) {
+          logger.warn(`Failed to process bonus for event: ${err.message}`);
         }
-
-        // Call processDirectBonus
-        logger.info(`Processing direct bonus for staker ${staker}, amount ${ethers.formatUnits(amount, 6)} BTN`);
-        const tx = await bonusEngine.processDirectBonus(staker, btnEquivalent);
-        const receipt = await tx.wait();
-        logger.info(`Direct bonus processed: tx ${receipt.hash}`);
-      } catch (err: any) {
-        // Don't crash — log and continue with next event
-        logger.warn(`Failed to process bonus for event: ${err.message}`);
       }
+
+      if (events.length > 0) {
+        logger.info(`Processed ${events.length} Staked events (blocks ${fromBlock}-${toBlock})`);
+      }
+    } catch (err: any) {
+      logger.warn(`Event query failed (blocks ${fromBlock}-${toBlock}): ${err.message}`);
     }
 
-    lastProcessedBlock = currentBlock;
-
-    if (events.length > 0) {
-      logger.info(`Processed ${events.length} Staked events (blocks ${lastProcessedBlock - (currentBlock - lastProcessedBlock)}-${currentBlock})`);
-    }
+    // Always advance, even if query failed, to avoid getting stuck
+    lastProcessedBlock = toBlock;
   }
 }
 

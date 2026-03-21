@@ -1,0 +1,22 @@
+import { ethers } from "ethers";
+export declare const BTN_TOKEN_ABI: string[];
+export declare const CUSTODIAL_ABI: string[];
+export declare const REWARD_ENGINE_ABI: string[];
+export declare const VAULT_MANAGER_ABI: string[];
+export declare const STAKING_VAULT_ABI: string[];
+export declare const VESTING_POOL_ABI: string[];
+export declare const WITHDRAWAL_WALLET_ABI: string[];
+export declare const BONUS_ENGINE_ABI: string[];
+export declare const RESERVE_FUND_ABI: string[];
+export declare function getProvider(): ethers.JsonRpcProvider;
+export declare function getRelayerSigner(): ethers.Wallet;
+export declare function getCustodialContract(signerOrProvider?: ethers.Signer | ethers.Provider): ethers.Contract;
+export declare function getBtnTokenContract(signerOrProvider?: ethers.Signer | ethers.Provider): ethers.Contract;
+export declare function getUsdcTokenContract(signerOrProvider?: ethers.Signer | ethers.Provider): ethers.Contract;
+export declare function getRewardEngineContract(signerOrProvider?: ethers.Signer | ethers.Provider): ethers.Contract;
+export declare function getVaultManagerContract(signerOrProvider?: ethers.Signer | ethers.Provider): ethers.Contract;
+export declare function getStakingVaultContract(signerOrProvider?: ethers.Signer | ethers.Provider): ethers.Contract;
+export declare function getVestingPoolContract(signerOrProvider?: ethers.Signer | ethers.Provider): ethers.Contract;
+export declare function getWithdrawalWalletContract(signerOrProvider?: ethers.Signer | ethers.Provider): ethers.Contract;
+export declare function getBonusEngineContract(signerOrProvider?: ethers.Signer | ethers.Provider): ethers.Contract;
+//# sourceMappingURL=contracts.d.ts.map

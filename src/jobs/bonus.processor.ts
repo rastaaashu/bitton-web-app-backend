@@ -1,4 +1,5 @@
 import { ethers } from "ethers";
+import { prisma } from "../utils/prisma";
 import { logger } from "../utils/logger";
 import {
   getProvider,
@@ -7,9 +8,8 @@ import {
   getRelayerSigner,
 } from "../config/contracts";
 
-const POLL_INTERVAL_MS = 30_000; // Check every 30 seconds
-const MAX_BLOCK_RANGE = 1000; // Max blocks to scan per poll (RPC limit safe)
-let lastProcessedBlock = 0;
+const POLL_INTERVAL_MS = 30_000;
+const MAX_BLOCK_RANGE = 1000;
 
 /**
  * Bonus Processor
@@ -17,7 +17,8 @@ let lastProcessedBlock = 0;
  * Listens for Staked events on StakingVault and triggers
  * BonusEngine.processDirectBonus() for the 5% referral bonus.
  *
- * Scans in chunks of MAX_BLOCK_RANGE to avoid RPC query limits.
+ * Persists lastProcessedBlock in the database (blockchain_state table)
+ * so it survives restarts and never rescans the entire chain.
  */
 export class BonusProcessor {
   private running = false;
@@ -25,10 +26,30 @@ export class BonusProcessor {
   async start(): Promise<void> {
     this.running = true;
 
-    // Start from current block (only process new events going forward)
-    const provider = getProvider();
-    lastProcessedBlock = await provider.getBlockNumber();
-    logger.info(`Bonus processor started at block ${lastProcessedBlock}`);
+    // Get or initialize last processed block from database
+    const state = await prisma.blockchainState.upsert({
+      where: { id: "bonus_processor" },
+      create: { id: "bonus_processor", lastBlock: 0 },
+      update: {},
+    });
+
+    let lastBlock = state.lastBlock;
+
+    // If no block stored yet, start from current block (don't scan history)
+    if (lastBlock === 0) {
+      const provider = getProvider();
+      const current = await provider.getBlockNumber();
+      if (current > 0) {
+        lastBlock = current;
+        await prisma.blockchainState.update({
+          where: { id: "bonus_processor" },
+          data: { lastBlock: current },
+        });
+      }
+      logger.info(`Bonus processor initialized at block ${lastBlock}`);
+    } else {
+      logger.info(`Bonus processor resuming from block ${lastBlock}`);
+    }
 
     while (this.running) {
       try {
@@ -49,9 +70,21 @@ export class BonusProcessor {
     const provider = getProvider();
     const currentBlock = await provider.getBlockNumber();
 
+    // Safety: if RPC returns 0 or invalid, skip this cycle
+    if (currentBlock <= 0) {
+      logger.warn("RPC returned invalid block number, skipping cycle");
+      return;
+    }
+
+    // Get last processed block from database
+    const state = await prisma.blockchainState.findUnique({
+      where: { id: "bonus_processor" },
+    });
+    const lastProcessedBlock = state?.lastBlock || currentBlock;
+
     if (currentBlock <= lastProcessedBlock) return;
 
-    // Limit range to MAX_BLOCK_RANGE to avoid RPC errors
+    // Limit range to MAX_BLOCK_RANGE
     const fromBlock = lastProcessedBlock + 1;
     const toBlock = Math.min(fromBlock + MAX_BLOCK_RANGE - 1, currentBlock);
 
@@ -67,7 +100,7 @@ export class BonusProcessor {
         try {
           if (!("args" in event)) continue;
           const args = (event as ethers.EventLog).args;
-          if (!args) continue;
+          if (!args || args.length < 2) continue;
 
           const staker = args[0] as string;
           const amount = args[1] as bigint;
@@ -92,8 +125,11 @@ export class BonusProcessor {
       logger.warn(`Event query failed (blocks ${fromBlock}-${toBlock}): ${err.message}`);
     }
 
-    // Always advance, even if query failed, to avoid getting stuck
-    lastProcessedBlock = toBlock;
+    // Persist progress to database
+    await prisma.blockchainState.update({
+      where: { id: "bonus_processor" },
+      data: { lastBlock: toBlock },
+    });
   }
 }
 

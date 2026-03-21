@@ -230,6 +230,15 @@ model WalletChallenge {
   @@map("wallet_challenges")
 }
 
+// ── Blockchain State (persisted cursor for event processors) ──
+model BlockchainState {
+  id        String   @id @default("singleton")
+  lastBlock Int      @default(0) @map("last_block")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("blockchain_state")
+}
+
 // ── Audit Log ──
 model AuditLog {
   id        String   @id @default(uuid())

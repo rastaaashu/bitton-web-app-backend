@@ -109,6 +109,13 @@ router.get("/dashboard/:address", async (req: Request, res: Response) => {
     let totalPendingRewards = BigInt(0);
     const formattedStakes = [];
 
+    // Fetch all pending rewards in parallel (not sequential N+1)
+    const pendingRewards = await Promise.all(
+      stakes.map((_: any, i: number) =>
+        stakingVault.getPendingRewards(normalizedAddr, i).catch(() => BigInt(0))
+      )
+    );
+
     for (let i = 0; i < stakes.length; i++) {
       const stake = stakes[i];
       const amount = stake.amount ?? stake[0];
@@ -127,13 +134,8 @@ router.get("/dashboard/:address", async (req: Request, res: Response) => {
         totalStakedBTNEquiv += BigInt(btnEquivalent);
       }
 
-      let pendingReward = BigInt(0);
+      const pendingReward = isActive ? pendingRewards[i] : BigInt(0);
       if (isActive) {
-        try {
-          pendingReward = await stakingVault.getPendingRewards(normalizedAddr, i);
-        } catch {
-          // Stake may not have pending rewards
-        }
         totalPendingRewards += pendingReward;
       }
 

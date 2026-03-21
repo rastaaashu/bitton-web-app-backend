@@ -3,7 +3,6 @@ import { ethers } from "ethers";
 import crypto from "crypto";
 import { prisma } from "../utils/prisma";
 import { logger } from "../utils/logger";
-import { getRelayerSigner, getBonusEngineContract } from "../config/contracts";
 import { jwtAuth, signAccessToken, signRefreshToken, JwtPayload } from "../middleware/jwtAuth";
 import { sendOtpEmail } from "../services/email.service";
 import { verifyTelegramAuth, TelegramLoginData } from "../utils/telegram";
@@ -82,40 +81,6 @@ async function autoCreateSponsorCode(userId: string): Promise<void> {
   }
 }
 
-/**
- * Register referrer on-chain via BonusEngine.
- * Called after user registration when they have a sponsor.
- * Uses the relayer wallet to send the tx on behalf of the new user.
- * Non-critical — if it fails, the user can register referrer manually on the referrals page.
- */
-async function registerReferrerOnChain(userAddress: string, sponsorId: string): Promise<void> {
-  try {
-    // Look up sponsor's EVM address
-    const sponsor = await prisma.user.findUnique({ where: { id: sponsorId } });
-    if (!sponsor?.evmAddress) {
-      logger.warn(`Cannot register referrer on-chain: sponsor ${sponsorId} has no EVM address`);
-      return;
-    }
-
-    const signer = getRelayerSigner();
-    const bonusEngine = getBonusEngineContract(signer);
-
-    // Check if referrer is already set on-chain
-    const currentReferrer = await bonusEngine.getReferrer(userAddress);
-    if (currentReferrer !== ethers.ZeroAddress) {
-      logger.info(`Referrer already set on-chain for ${userAddress}`);
-      return;
-    }
-
-    // BonusEngine.registerReferrer is called by the USER, not operator
-    // But the user hasn't connected yet. The relayer can't call it on behalf.
-    // Instead, we'll use processDirectBonus when they stake (OPERATOR_ROLE).
-    // For the referral DISPLAY, we use database sponsor_id relationships.
-    logger.info(`On-chain referrer registration for ${userAddress} → ${sponsor.evmAddress} (deferred to first stake)`);
-  } catch (err: any) {
-    logger.warn(`Failed to register referrer on-chain: ${err.message}`);
-  }
-}
 
 /**
  * Validate a sponsor reference - accepts EITHER a sponsor code string OR an EVM wallet address.

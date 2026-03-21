@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const isTest = process.env.NODE_ENV === "test";
+const isProd = process.env.NODE_ENV === "production";
 
 function required(key: string): string {
   const val = process.env[key];
@@ -16,6 +17,17 @@ function optional(key: string, fallback: string): string {
   return process.env[key] || fallback;
 }
 
+/** Required in production, optional in development */
+function prodRequired(key: string, devFallback: string): string {
+  const val = process.env[key];
+  if (!val) {
+    if (isTest) return `test-${key}`;
+    if (isProd) throw new Error(`Missing required env var in production: ${key}`);
+    return devFallback;
+  }
+  return val;
+}
+
 export const env = {
   port: parseInt(optional("PORT", "3001"), 10),
   nodeEnv: optional("NODE_ENV", "development"),
@@ -23,28 +35,28 @@ export const env = {
 
   // Blockchain
   rpcUrl: required("RPC_URL"),
-  chainId: parseInt(optional("CHAIN_ID", "84532"), 10),
+  chainId: parseInt(optional("CHAIN_ID", "8453"), 10),
   relayerPrivateKey: required("RELAYER_PRIVATE_KEY"),
 
-  // Contract addresses
+  // Contract addresses — required in production
   contracts: {
     btnToken: required("BTN_TOKEN_ADDRESS"),
-    usdcToken: optional("USDC_TOKEN_ADDRESS", ""),
+    usdcToken: prodRequired("USDC_TOKEN_ADDRESS", ""),
     custodial: required("CUSTODIAL_ADDRESS"),
-    vaultManager: optional("VAULT_MANAGER_ADDRESS", ""),
-    stakingVault: optional("STAKING_VAULT_ADDRESS", ""),
-    rewardEngine: optional("REWARD_ENGINE_ADDRESS", ""),
-    vestingPool: optional("VESTING_POOL_ADDRESS", ""),
-    withdrawalWallet: optional("WITHDRAWAL_WALLET_ADDRESS", ""),
-    bonusEngine: optional("BONUS_ENGINE_ADDRESS", ""),
-    reserveFund: optional("RESERVE_FUND_ADDRESS", ""),
+    vaultManager: prodRequired("VAULT_MANAGER_ADDRESS", ""),
+    stakingVault: prodRequired("STAKING_VAULT_ADDRESS", ""),
+    rewardEngine: prodRequired("REWARD_ENGINE_ADDRESS", ""),
+    vestingPool: prodRequired("VESTING_POOL_ADDRESS", ""),
+    withdrawalWallet: prodRequired("WITHDRAWAL_WALLET_ADDRESS", ""),
+    bonusEngine: prodRequired("BONUS_ENGINE_ADDRESS", ""),
+    reserveFund: prodRequired("RESERVE_FUND_ADDRESS", ""),
   },
 
   // Auth
-  authSecret: process.env.NODE_ENV === "production" ? required("AUTH_SECRET") : optional("AUTH_SECRET", "dev-secret"),
+  authSecret: isProd ? required("AUTH_SECRET") : optional("AUTH_SECRET", "dev-secret"),
   jwtAccessExpiry: optional("JWT_ACCESS_EXPIRY", "15m"),
   jwtRefreshExpiry: optional("JWT_REFRESH_EXPIRY", "7d"),
-  adminApiKey: optional("ADMIN_API_KEY", "dev-admin-key"),
+  adminApiKey: isProd ? required("ADMIN_API_KEY") : optional("ADMIN_API_KEY", "dev-admin-key"),
 
   // Email (SMTP)
   smtpHost: optional("SMTP_HOST", ""),
@@ -55,7 +67,7 @@ export const env = {
 
   // HTTP Email API (for platforms that block SMTP ports like Render)
   emailApiKey: optional("EMAIL_API_KEY", ""),
-  emailApiProvider: optional("EMAIL_API_PROVIDER", "resend"), // "resend" or "sendgrid"
+  emailApiProvider: optional("EMAIL_API_PROVIDER", "resend"),
 
   // Telegram
   telegramBotToken: optional("TELEGRAM_BOT_TOKEN", ""),

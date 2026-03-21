@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { ethers } from "ethers";
+import { prisma } from "../utils/prisma";
 import { logger } from "../utils/logger";
 import {
   getProvider,
@@ -215,13 +216,21 @@ router.get("/referrals/:address", async (req: Request, res: Response) => {
     }
 
     const normalizedAddr = ethers.getAddress(address);
-    const bonusEngine = getBonusEngineContract();
     const vaultManager = getVaultManagerContract();
     const stakingVault = getStakingVaultContract();
 
-    const [referrer, downline, vaultActive, userTier] = await Promise.all([
-      bonusEngine.getReferrer(normalizedAddr).catch(() => ethers.ZeroAddress),
-      bonusEngine.getDownline(normalizedAddr).catch(() => []),
+    // Get referral data from database (includes migrated users)
+    const dbUser = await prisma.user.findFirst({
+      where: { evmAddress: normalizedAddr.toLowerCase() },
+      include: {
+        sponsor: { select: { evmAddress: true } },
+        sponsored: { select: { evmAddress: true } },
+      },
+    });
+    const referrer = dbUser?.sponsor?.evmAddress || null;
+    const downline = dbUser?.sponsored?.map((s: any) => s.evmAddress).filter(Boolean) || [];
+
+    const [vaultActive, userTier] = await Promise.all([
       vaultManager.isVaultActive(normalizedAddr).catch(() => false),
       vaultManager.getUserTier(normalizedAddr).catch(() => 0),
     ]);
@@ -264,7 +273,7 @@ router.get("/referrals/:address", async (req: Request, res: Response) => {
 
     res.json({
       address: normalizedAddr,
-      referrer: referrer === ethers.ZeroAddress ? null : referrer,
+      referrer,
       vault: {
         active: vaultActive,
         tier,

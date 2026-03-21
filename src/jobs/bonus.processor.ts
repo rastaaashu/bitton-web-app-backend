@@ -65,11 +65,12 @@ export class BonusProcessor {
 
       for (const event of events) {
         try {
-          const args = event.args;
+          if (!("args" in event)) continue;
+          const args = (event as ethers.EventLog).args;
           if (!args) continue;
 
-          const staker = args[0];
-          const amount = args[1];
+          const staker = args[0] as string;
+          const amount = args[1] as bigint;
 
           // Check if staker has a referrer on-chain
           const referrer = await bonusEngine.getReferrer(staker);

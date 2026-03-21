@@ -76,8 +76,6 @@ router.get("/dashboard/:address", async (req: Request, res: Response) => {
       withdrawableBalance,
       withdrawableUSDC,
       rewardPoolBalance,
-      referrer,
-      downline,
     ] = await Promise.all([
       btnToken.balanceOf(normalizedAddr).catch(() => BigInt(0)),
       usdcToken.balanceOf(normalizedAddr).catch(() => BigInt(0)),
@@ -90,16 +88,21 @@ router.get("/dashboard/:address", async (req: Request, res: Response) => {
       withdrawalWallet.getWithdrawableBalance(normalizedAddr).catch(() => BigInt(0)),
       withdrawalWallet.getWithdrawableInUSDC(normalizedAddr).catch(() => BigInt(0)),
       rewardEngine.rewardPoolBalance().catch(() => BigInt(0)),
-      bonusEngine.getReferrer(normalizedAddr).catch(() => ethers.ZeroAddress),
-      bonusEngine.getDownline(normalizedAddr).catch(() => []),
     ]);
 
-    // Get user's sponsor code from database
+    // Get referral data from DATABASE (includes migrated users)
     const dbUser = await prisma.user.findFirst({
       where: { evmAddress: normalizedAddr.toLowerCase() },
-      include: { sponsorCodes: { where: { active: true }, take: 1 } },
+      include: {
+        sponsorCodes: { where: { active: true }, take: 1 },
+        sponsor: { select: { evmAddress: true } },
+        sponsored: { select: { id: true, evmAddress: true, createdAt: true } },
+      },
     });
     const sponsorCode = dbUser?.sponsorCodes?.[0]?.code || null;
+    const referrer = dbUser?.sponsor?.evmAddress || null;
+    const downline = dbUser?.sponsored?.map((s: any) => s.evmAddress).filter(Boolean) || [];
+    const downlineCount = dbUser?.sponsored?.length || 0;
 
     // Calculate total staked and pending rewards across all stakes
     let totalStakedBTNEquiv = BigInt(0);
@@ -175,8 +178,9 @@ router.get("/dashboard/:address", async (req: Request, res: Response) => {
         stakes: formattedStakes,
       },
       referral: {
-        referrer: referrer === ethers.ZeroAddress ? null : referrer,
-        downlineCount: downline.length,
+        referrer,
+        downline,
+        downlineCount,
         sponsorCode,
       },
       protocol: {

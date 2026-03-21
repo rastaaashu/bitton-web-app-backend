@@ -49,7 +49,7 @@ export const env = {
     vestingPool: prodRequired("VESTING_POOL_ADDRESS", ""),
     withdrawalWallet: prodRequired("WITHDRAWAL_WALLET_ADDRESS", ""),
     bonusEngine: prodRequired("BONUS_ENGINE_ADDRESS", ""),
-    reserveFund: prodRequired("RESERVE_FUND_ADDRESS", ""),
+    reserveFund: optional("RESERVE_FUND_ADDRESS", ""),
   },
 
   // Auth

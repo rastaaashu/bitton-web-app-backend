@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { ethers } from "ethers";
+import { prisma } from "../utils/prisma";
 import { logger } from "../utils/logger";
 import { blockCache } from "../utils/cache";
 import {
@@ -93,6 +94,13 @@ router.get("/dashboard/:address", async (req: Request, res: Response) => {
       bonusEngine.getDownline(normalizedAddr).catch(() => []),
     ]);
 
+    // Get user's sponsor code from database
+    const dbUser = await prisma.user.findFirst({
+      where: { evmAddress: normalizedAddr.toLowerCase() },
+      include: { sponsorCodes: { where: { active: true }, take: 1 } },
+    });
+    const sponsorCode = dbUser?.sponsorCodes?.[0]?.code || null;
+
     // Calculate total staked and pending rewards across all stakes
     let totalStakedBTNEquiv = BigInt(0);
     let totalPendingRewards = BigInt(0);
@@ -169,6 +177,7 @@ router.get("/dashboard/:address", async (req: Request, res: Response) => {
       referral: {
         referrer: referrer === ethers.ZeroAddress ? null : referrer,
         downlineCount: downline.length,
+        sponsorCode,
       },
       protocol: {
         rewardPoolBalance: ethers.formatUnits(rewardPoolBalance, 6),
